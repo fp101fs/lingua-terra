@@ -477,7 +477,7 @@ class GlobeControls {
         const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
         const pmx = (this as any)._pmx, pmy = (this as any)._pmy;
         if (performance.now() - this.lastPan > 40) {
-          this.tLon = wrapLon(this.tLon + (mx - pmx) / f * this.tDist / Math.cos(clamp(this.tLat, -85, 85) * Math.PI / 180) * 180 / Math.PI);
+          this.tLon = wrapLon(this.tLon - (mx - pmx) / f * this.tDist / Math.cos(clamp(this.tLat, -85, 85) * Math.PI / 180) * 180 / Math.PI);
           this.tLat = clamp(this.tLat + (my - pmy) / f * this.tDist * 180 / Math.PI, -85, 85);
           this.lastPan = performance.now();
         }
@@ -487,7 +487,7 @@ class GlobeControls {
     }
     if (this.dragging && this.p.size === 1) {
       const f = this.focal();
-      const dLon = dx / f * this.tDist * 180 / Math.PI;
+      const dLon = -dx / f * this.tDist * 180 / Math.PI;
       const dLat = dy / f * this.tDist * 180 / Math.PI;
       this.tLon = wrapLon(this.tLon + dLon / Math.cos(clamp(this.tLat, -85, 85) * Math.PI / 180));
       this.tLat = clamp(this.tLat + dLat, -85, 85);
@@ -532,7 +532,7 @@ class GlobeControls {
       const k = Math.pow(1.012, e.deltaY);
       this.zoomAt(e.clientX, e.clientY, this.tDist * k);
     } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {      // two-finger horizontal: rotate
-      this.tLon = wrapLon(this.tLon + e.deltaX * 0.03 * (this.tDist / 3));
+      this.tLon = wrapLon(this.tLon - e.deltaX * 0.03 * (this.tDist / 3));
       this.tLat = clamp(this.tLat - e.deltaY * 0.03 * (this.tDist / 3), -85, 85);
     } else {                                                    // wheel / two-finger vertical
       let dy = clamp(e.deltaY, -260, 260);
@@ -551,7 +551,7 @@ class GlobeControls {
       const r = this.dom.getBoundingClientRect();
       const fx = cx - r.left - r.width / 2, fy = -(cy - r.top - r.height / 2);
       const f = this.focal(), ratio = nd / this.tDist - 1;
-      const dLon = fx / f * ratio * (180 / Math.PI) / cosL * 0.9;
+      const dLon = -fx / f * ratio * (180 / Math.PI) / cosL * 0.9;
       const dLat = fy / f * ratio * (180 / Math.PI) * 0.9;
       this.tLon = wrapLon(lon + dLon); this.tLat = clamp(lat + dLat, -85, 85);
     }
@@ -624,9 +624,16 @@ class PinManager {
     this.tex = this.makeTexture();
     this.group = new THREE.Group();
     for (const c of countries) {
-      const mat = new THREE.SpriteMaterial({ map: this.tex, depthTest: true, transparent: true });
+      const mat = new THREE.SpriteMaterial({
+        map: this.tex,
+        depthTest: true,
+        depthWrite: false,
+        transparent: true,
+        alphaTest: 0.02,
+      });
       mat.color.setRGB(...hslToRgb(c.color[0], 0.75, 0.62));
       const s = new THREE.Sprite(mat);
+      s.center.set(0.5, 0.05); // anchor tip at country position
       s.position.copy(geoToVec3(c.center[1], c.center[0], R * 1.013));
       s.userData.code = c.meta.a2;
       s.visible = false;
@@ -637,12 +644,27 @@ class PinManager {
   private makeTexture() {
     const cv = document.createElement("canvas"); cv.width = 64; cv.height = 64;
     const g = cv.getContext("2d")!;
-    g.beginPath(); g.arc(32, 22, 13, Math.PI * 0.92, Math.PI * 0.08);
-    g.lineTo(32, 58); g.closePath();
-    g.fillStyle = "#ffffff"; g.fill();
-    g.strokeStyle = "rgba(0,0,0,.55)"; g.lineWidth = 3; g.stroke();
-    g.beginPath(); g.arc(32, 22, 5.5, 0, 7); g.fillStyle = "rgba(6,10,20,.85)"; g.fill();
-    const t = new THREE.CanvasTexture(cv); t.anisotropy = 4; return t;
+    g.clearRect(0, 0, 64, 64);
+    g.shadowColor = "rgba(0, 0, 0, 0.45)";
+    g.shadowBlur = 4;
+    g.shadowOffsetY = 2;
+    g.beginPath();
+    g.arc(32, 20, 14, Math.PI * 0.88, Math.PI * 0.12);
+    g.lineTo(32, 59);
+    g.closePath();
+    g.fillStyle = "#ffffff";
+    g.fill();
+    g.shadowColor = "transparent";
+    g.strokeStyle = "rgba(20, 30, 45, 0.85)";
+    g.lineWidth = 2.5;
+    g.stroke();
+    g.beginPath();
+    g.arc(32, 20, 6, 0, Math.PI * 2);
+    g.fillStyle = "rgba(10, 18, 30, 0.9)";
+    g.fill();
+    const t = new THREE.CanvasTexture(cv);
+    t.anisotropy = 4;
+    return t;
   }
   update(cam: any, active: Set<string>) {
     const showPins = cam.position.length() < PIN_SHOW_DIST;
@@ -810,10 +832,13 @@ class App {
     (this as any).earthMat = earthMat;
 
     // overlay shell (country fills & borders)
-    this.fillCv.width = 2048; this.fillCv.height = 1024;
+    this.fillCv.width = 4096; this.fillCv.height = 2048;
     this.fillCtx = this.fillCv.getContext("2d")!;
     this.fillTex = new THREE.CanvasTexture(this.fillCv);
     this.fillTex.wrapS = THREE.RepeatWrapping;
+    this.fillTex.minFilter = THREE.LinearFilter;
+    this.fillTex.magFilter = THREE.LinearFilter;
+    this.fillTex.generateMipmaps = false;
     this.fillTex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
     const ovMat = new THREE.MeshBasicMaterial({ map: this.fillTex, transparent: true, depthWrite: false });
     const ov = new THREE.Mesh(new THREE.SphereGeometry(R_OVER, 96, 96), ovMat);
@@ -923,13 +948,12 @@ class App {
     g.closePath();
   }
   private eachDraw(g: CanvasRenderingContext2D, c: Country, W: number, H: number, fn: (shift: number) => void) {
-    const crosses = c.polys.some(p => {
-      let mn = 999, mx = -999;
-      for (const [lo] of p) { if (lo < mn) mn = lo; if (lo > mx) mx = lo }
-      return mx - mn > 180;
-    });
-    g.beginPath();
-    if (crosses) { fn(360); fn(-360); } else fn(0);
+    fn(0);
+    const touchesAntimeridian = c.polys.some(p => p.some(([lo]) => lo > 165 || lo < -165));
+    if (touchesAntimeridian) {
+      fn(360);
+      fn(-360);
+    }
   }
 
   private buildIndexRaster() {
@@ -967,13 +991,15 @@ class App {
     for (const c of this.byCode.values()) {
       if (!active.has(c.meta.a2)) continue;
       const em = this.selCountry === c;
-      g.fillStyle = cssHsl(c.color, em ? 0.44 : 0.30);
+      g.fillStyle = cssHsl(c.color, em ? 0.46 : 0.32);
       this.eachDraw(g, c, W, H, sh => { for (const p of c.polys) this.tracePoly(g, p, W, H, sh) });
       g.fill("evenodd");
     }
-    // borders — all countries faintly, active strongly
+    // crisp borders — subtle global borders, bright active borders
     g.lineJoin = "round";
-    g.strokeStyle = "rgba(255,255,255,0.16)"; g.lineWidth = 1;
+    g.lineCap = "round";
+    g.strokeStyle = "rgba(255,255,255,0.28)";
+    g.lineWidth = 1.6;
     for (const c of this.byCode.values()) {
       this.eachDraw(g, c, W, H, sh => { for (const p of c.polys) this.tracePoly(g, p, W, H, sh) });
       g.stroke();
@@ -981,8 +1007,8 @@ class App {
     for (const c of this.byCode.values()) {
       if (!active.has(c.meta.a2)) continue;
       const em = this.selCountry === c;
-      g.strokeStyle = cssHsl(c.color, em ? 1 : 0.92, 14);
-      g.lineWidth = em ? 3.2 : 2.1;
+      g.strokeStyle = cssHsl(c.color, em ? 1 : 0.95, 18);
+      g.lineWidth = em ? 4.5 : 3.0;
       this.eachDraw(g, c, W, H, sh => { for (const p of c.polys) this.tracePoly(g, p, W, H, sh) });
       g.stroke();
     }
