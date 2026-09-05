@@ -113,12 +113,20 @@ class App {
       const meta = NUM[Number(numId)];
       if (!meta) return; // e.g. Antarctica (010) → intentionally skipped
       const [a2, name, cap, capLat, capLon, pop] = meta;
+      let effectivePolys = rawPolys;
+      // France (FR / 250) in Natural Earth includes French Guiana in South America.
+      // Filter out overseas territories outside Europe so France centroid, borders, and labels stay in Europe.
+      if (a2 === "FR") {
+        effectivePolys = rawPolys.filter(
+          ring => ring.length > 0 && ring[0][0] > -15 && ring[0][1] > 30
+        );
+      }
       const polys: number[][][] = [];
       let x = 0,
         y = 0,
         z = 0,
         n = 0;
-      for (const ring of rawPolys) {
+      for (const ring of effectivePolys) {
         if (ring.length < 3) continue;
         polys.push(ring);
         for (const [lo, la] of ring) {
@@ -287,7 +295,7 @@ class App {
   private loop = () => {
     requestAnimationFrame(this.loop);
     const camDist = this.earthScene.cam.position.length();
-    if (Math.abs(camDist - this.lastLabelDist) > 0.35) {
+    if (Math.abs(camDist - this.lastLabelDist) > 0.15) {
       this.lastLabelDist = camDist;
       this.earthScene.overlayDirty = true;
     }

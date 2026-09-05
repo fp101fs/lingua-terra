@@ -74,17 +74,20 @@ export class EarthScene {
     });
     this.scene.add(new THREE.Mesh(new THREE.SphereGeometry(R, 96, 96), this.earthMat));
 
-    // Overlay shell (country fills & borders)
+    // Overlay shell (country fills, borders, crisp high-DPI country names)
+    const maxTex = this.renderer.capabilities.maxTextureSize || 4096;
+    const texW = maxTex >= 8192 ? 8192 : 4096;
+    const texH = texW / 2;
     this.fillCv = document.createElement("canvas");
-    this.fillCv.width = 4096;
-    this.fillCv.height = 2048;
+    this.fillCv.width = texW;
+    this.fillCv.height = texH;
     this.fillCtx = this.fillCv.getContext("2d")!;
     this.fillTex = new THREE.CanvasTexture(this.fillCv);
     this.fillTex.wrapS = THREE.RepeatWrapping;
-    this.fillTex.minFilter = THREE.LinearFilter;
+    this.fillTex.minFilter = THREE.LinearMipmapLinearFilter;
     this.fillTex.magFilter = THREE.LinearFilter;
-    this.fillTex.generateMipmaps = false;
-    this.fillTex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+    this.fillTex.generateMipmaps = true;
+    this.fillTex.anisotropy = Math.min(16, this.renderer.capabilities.getMaxAnisotropy());
     const ovMat = new THREE.MeshBasicMaterial({ map: this.fillTex, transparent: true, depthWrite: false });
     const ov = new THREE.Mesh(new THREE.SphereGeometry(R_OVER, 96, 96), ovMat);
     ov.renderOrder = 2;
@@ -213,12 +216,17 @@ export class EarthScene {
       H = this.fillCv.height;
     g.clearRect(0, 0, W, H);
 
+    // Scale factor relative to baseline 4096px canvas
+    const scale = W / 4096;
+
     // 1. Fills
     for (const c of countries) {
       if (!active.has(c.meta.a2)) continue;
       const em = selCountry === c;
       const col = colorByLang && c.langColor ? c.langColor : c.color;
-      g.fillStyle = cssHsl(col, em ? 0.48 : 0.34);
+      // In colorByLang mode, use higher alpha (0.50) so pastel/blue tones stand out boldly against dark earth/ocean textures
+      const baseAlpha = colorByLang ? 0.50 : 0.38;
+      g.fillStyle = cssHsl(col, em ? Math.min(0.72, baseAlpha + 0.16) : baseAlpha);
       g.beginPath();
       for (const p of c.polys) this.tracePoly(g, p, W, H);
       g.fill("evenodd");
@@ -229,7 +237,7 @@ export class EarthScene {
       g.lineJoin = "round";
       g.lineCap = "round";
       g.strokeStyle = "rgba(255,255,255,0.28)";
-      g.lineWidth = 1.6;
+      g.lineWidth = 1.6 * scale;
       for (const c of countries) {
         g.beginPath();
         for (const p of c.polys) this.tracePoly(g, p, W, H);
@@ -242,7 +250,7 @@ export class EarthScene {
         const em = selCountry === c;
         const col = colorByLang && c.langColor ? c.langColor : c.color;
         g.strokeStyle = cssHsl(col, em ? 1 : 0.95, 18);
-        g.lineWidth = em ? 4.5 : 3.0;
+        g.lineWidth = (em ? 4.5 : 3.0) * scale;
         g.beginPath();
         for (const p of c.polys) this.tracePoly(g, p, W, H);
         g.stroke();
@@ -413,26 +421,30 @@ export class EarthScene {
     placedItems: { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } }[]
   ): { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } } | null {
     const W = this.fillCv.width;
+    const scale = W / 4096;
+    const scaledMaxLen = maxLen * scale;
+    const minFont = Math.round(7 * scale);
 
     // Proportionally reduce font size down until text fits within country border
-    let fitFontSize = fontSize;
+    let fitFontSize = Math.round(fontSize * scale);
     g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${fitFontSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
     let measuredWidth = g.measureText(name).width;
-    if (measuredWidth > maxLen && maxLen > 10) {
-      fitFontSize = Math.max(7, Math.floor(fitFontSize * (maxLen / measuredWidth)));
+    if (measuredWidth > scaledMaxLen && scaledMaxLen > 10 * scale) {
+      fitFontSize = Math.max(minFont, Math.floor(fitFontSize * (scaledMaxLen / measuredWidth)));
       g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${fitFontSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
       measuredWidth = g.measureText(name).width;
     }
 
-    // Try starting from fitFontSize down to 7px to find collision-free space
+    // Try starting from fitFontSize down to minFont to find collision-free space
     const fontSizesToTry: number[] = [];
-    for (let f = fitFontSize; f >= 7; f -= 2) {
+    const step = Math.max(1, Math.round(2 * scale));
+    for (let f = fitFontSize; f >= minFont; f -= step) {
       fontSizesToTry.push(f);
     }
-    if (!fontSizesToTry.includes(7)) fontSizesToTry.push(7);
+    if (!fontSizesToTry.includes(minFont)) fontSizesToTry.push(minFont);
 
     // Micro-adjustments along principal axis
-    const shifts = [0, 6, -6, 12, -12, 18, -18];
+    const shifts = [0, 6 * scale, -6 * scale, 12 * scale, -12 * scale, 18 * scale, -18 * scale];
     const cosA = Math.cos(angle);
     const sinA = Math.sin(angle);
 
@@ -446,8 +458,8 @@ export class EarthScene {
     for (const fs of fontSizesToTry) {
       if (chosenCandidate) break;
       g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${fs}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-      const curW = g.measureText(name).width + 3;
-      const curH = fs + 3;
+      const curW = g.measureText(name).width + 3 * scale;
+      const curH = fs + 3 * scale;
 
       for (const s of shifts) {
         const cx = x + s * cosA;
@@ -466,10 +478,10 @@ export class EarthScene {
     if (!chosenCandidate) {
       // If selected or active language, place at minimum font size even under tight constraints
       if (isSelected || isActive) {
-        const fs = Math.max(7, Math.min(10, fitFontSize));
+        const fs = Math.max(minFont, Math.min(Math.round(10 * scale), fitFontSize));
         g.font = `${isSelected ? 800 : 700} ${fs}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-        const curW = g.measureText(name).width + 3;
-        const curH = fs + 3;
+        const curW = g.measureText(name).width + 3 * scale;
+        const curH = fs + 3 * scale;
         const corners = this.getRotatedBoxCorners(x, y, curW, curH, angle);
         const aabb = this.computeAABB(corners);
         chosenCandidate = { renderX: x, renderY: y, fontSize: fs, item: { corners, aabb } };
@@ -506,8 +518,9 @@ export class EarthScene {
     g.textBaseline = "middle";
     g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${actualFontSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
 
+    const scale = this.fillCv.width / 4096;
     g.strokeStyle = "rgba(4, 8, 16, 0.95)";
-    g.lineWidth = Math.max(2.5, actualFontSize * 0.22);
+    g.lineWidth = Math.max(2.5 * scale, actualFontSize * 0.22);
     g.lineJoin = "round";
     g.strokeText(name, 0, 0);
 

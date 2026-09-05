@@ -56,7 +56,7 @@ export function deterministicColor(a2: string): [number, number, number] {
 }
 
 export const LANG_COLORS: Record<string, [number, number, number]> = {
-  en: [210 / 360, 0.75, 0.52], // Deep Sky Blue (UK, US, Canada, Australia, etc.)
+  en: [198 / 360, 0.95, 0.58], // Vivid Electric Cyan-Blue (UK, US, Canada, Australia, etc.)
   es: [35 / 360, 0.82, 0.52],  // Amber / Warm Orange (Spain, Mexico, Argentina, etc.)
   fr: [280 / 360, 0.72, 0.54], // Purple / Violet (France, Senegal, DRC, etc.)
   zh: [0 / 360, 0.78, 0.52],   // Crimson Red (China, Singapore)
