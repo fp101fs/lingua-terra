@@ -26,15 +26,11 @@ export class UIManager {
             <div class="dock-sub">Where the world's languages are official</div>
           </div>
           <div class="dock-layers" id="dockLayers">
-            <button class="layer-btn on" data-layer="terrain" title="Terrain Relief & Specular">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="m8 3 4 8 5-5 5 15H2L8 3z"/></svg>
-              <span>Terrain</span>
-            </button>
             <button class="layer-btn on" data-layer="borders" title="Country Borders">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20M12 2a14.5 14.5 0 0 1 0 20M2 12h20"/></svg>
               <span>Borders</span>
             </button>
-            <button class="layer-btn on" data-layer="labels" title="Country Names (widest angle)">
+            <button class="layer-btn on" data-layer="labels" title="Country Names (widest angle & callouts)">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="m4 19 4.5-12L13 19M5.5 14.5h6M15 9h6M17 6h4M17 12h4"/></svg>
               <span>Names</span>
             </button>
@@ -42,20 +38,31 @@ export class UIManager {
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
               <span>Pins</span>
             </button>
-            <button class="layer-btn on" data-layer="clouds" title="Drifting Cloud Layer">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
-              <span>Clouds</span>
+          </div>
+          <div class="dock-tabs">
+            <button class="dock-tab active" id="tabLangs" data-tab="langs">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6"/></svg>
+              <span>Languages</span>
             </button>
-            <button class="layer-btn on" data-layer="night" title="City Night Lights">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
-              <span>Night</span>
+            <button class="dock-tab" id="tabCountries" data-tab="countries">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20M12 2a14.5 14.5 0 0 1 0 20M2 12h20"/></svg>
+              <span>Countries</span>
+              <span class="tab-badge" id="countryBadge">0</span>
             </button>
           </div>
-          <div class="dock-actions">
-            <button class="chip" id="btnAll">✦ Show all</button>
-            <button class="chip" id="btnClear">Reset</button>
+          <div id="tabContentLangs" class="tab-content active">
+            <div class="dock-actions">
+              <button class="chip" id="btnAll">✦ Show all</button>
+              <button class="chip" id="btnClear">Reset</button>
+            </div>
+            <div class="langs" id="langs"></div>
           </div>
-          <div class="langs" id="langs"></div>
+          <div id="tabContentCountries" class="tab-content">
+            <div class="countries-search-wrap">
+              <input type="text" id="countrySearch" class="country-search" placeholder="Search countries…" autocomplete="off" />
+            </div>
+            <div class="countries-list" id="countriesList"></div>
+          </div>
           <div class="dock-foot">${CREDIT}</div>
         </div>
         <div id="card" class="glass"><div class="band"></div>
@@ -70,7 +77,14 @@ export class UIManager {
       "gl",
       "dock",
       "dockLayers",
+      "tabLangs",
+      "tabCountries",
+      "tabContentLangs",
+      "tabContentCountries",
       "langs",
+      "countryBadge",
+      "countrySearch",
+      "countriesList",
       "card",
       "cardIn",
       "cardX",
@@ -181,6 +195,62 @@ export class UIManager {
       1
     )}, ${cssHsl(c.color, 0.25, 18)})`;
     card.classList.add("show");
+
+    // Highlight country in country list if open
+    this.el.countriesList?.querySelectorAll(".country-item").forEach(item => {
+      item.classList.toggle("active", (item as HTMLElement).dataset.code === c.meta.a2);
+    });
+  }
+
+  buildCountryList(countries: Country[], onSelect: (c: Country) => void) {
+    const list = this.el.countriesList;
+    const badge = this.el.countryBadge;
+    const sorted = [...countries].sort((a, b) => a.meta.name.localeCompare(b.meta.name));
+    if (badge) badge.textContent = String(sorted.length);
+
+    const render = (items: Country[]) => {
+      list.innerHTML = items
+        .map(
+          c => `
+          <button class="country-item" data-code="${c.meta.a2}">
+            <span class="c-flag">${flagOf(c.meta.a2)}</span>
+            <div class="c-text">
+              <span class="c-name">${c.meta.name}</span>
+              <span class="c-sub">${c.meta.cap} · ${fmtPop(c.meta.pop)}</span>
+            </div>
+          </button>`
+        )
+        .join("");
+
+      list.querySelectorAll(".country-item").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const code = (btn as HTMLElement).dataset.code!;
+          const c = countries.find(item => item.meta.a2 === code);
+          if (c) onSelect(c);
+        });
+      });
+    };
+
+    render(sorted);
+
+    // Search filter
+    const searchInput = this.el.countrySearch as HTMLInputElement;
+    if (searchInput) {
+      searchInput.addEventListener("input", () => {
+        const q = searchInput.value.trim().toLowerCase();
+        if (!q) {
+          render(sorted);
+        } else {
+          const filtered = sorted.filter(
+            c =>
+              c.meta.name.toLowerCase().includes(q) ||
+              c.meta.a2.toLowerCase().includes(q) ||
+              c.meta.cap.toLowerCase().includes(q)
+          );
+          render(filtered);
+        }
+      });
+    }
   }
 
   updateLayersState(layers: LayerState) {
@@ -202,6 +272,20 @@ export class UIManager {
       if (matchMedia("(max-width:860px)").matches) this.el.dock.classList.toggle("open");
     });
     (this.el.gl as HTMLCanvasElement).addEventListener("click", e => events.onCanvasClick(e));
+
+    // Tab switching: Languages vs Countries
+    this.el.tabLangs.addEventListener("click", () => {
+      this.el.tabLangs.classList.add("active");
+      this.el.tabCountries.classList.remove("active");
+      this.el.tabContentLangs.classList.add("active");
+      this.el.tabContentCountries.classList.remove("active");
+    });
+    this.el.tabCountries.addEventListener("click", () => {
+      this.el.tabCountries.classList.add("active");
+      this.el.tabLangs.classList.remove("active");
+      this.el.tabContentCountries.classList.add("active");
+      this.el.tabContentLangs.classList.remove("active");
+    });
 
     this.el.dockLayers.querySelectorAll(".layer-btn").forEach(btn => {
       btn.addEventListener("click", () => {

@@ -102,15 +102,43 @@ export function splitAntimeridian(ring: [number, number][]): [number, number][][
   return segments;
 }
 
-export function computeWidestLabel(polys: number[][][], name: string): { cx: number; cy: number; angle: number; span: number; fontSize: number } {
-  if (!polys.length) return { cx: 0, cy: 0, angle: 0, span: 5, fontSize: 20 };
+export function computeWidestLabel(
+  polys: number[][][],
+  name: string
+): {
+  cx: number;
+  cy: number;
+  angle: number;
+  span: number;
+  fontSize: number;
+  maxLen: number;
+  useCallout: boolean;
+  calloutDx: number;
+  calloutDy: number;
+} {
+  if (!polys.length) {
+    return {
+      cx: 0,
+      cy: 0,
+      angle: 0,
+      span: 5,
+      fontSize: 18,
+      maxLen: 100,
+      useCallout: false,
+      calloutDx: 3,
+      calloutDy: -2,
+    };
+  }
 
   // Find the largest polygon by vertex count and bounding box
   let bestPoly = polys[0];
   let maxWeight = 0;
   for (const poly of polys) {
     if (poly.length < 3) continue;
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    let minX = Infinity,
+      maxX = -Infinity,
+      minY = Infinity,
+      maxY = -Infinity;
     for (const [x, y] of poly) {
       if (x < minX) minX = x;
       if (x > maxX) maxX = x;
@@ -125,7 +153,8 @@ export function computeWidestLabel(polys: number[][][], name: string): { cx: num
   }
 
   // Calculate centroid of the main polygon
-  let cx = 0, cy = 0;
+  let cx = 0,
+    cy = 0;
   for (const [x, y] of bestPoly) {
     cx += x;
     cy += y;
@@ -135,7 +164,9 @@ export function computeWidestLabel(polys: number[][][], name: string): { cx: num
 
   // Covariance matrix of points projected with latitude scaling
   const cosLat = Math.cos((cy * Math.PI) / 180);
-  let sxx = 0, syy = 0, sxy = 0;
+  let sxx = 0,
+    syy = 0,
+    sxy = 0;
   for (const [x, y] of bestPoly) {
     const dx = (x - cx) * cosLat;
     const dy = y - cy;
@@ -153,10 +184,45 @@ export function computeWidestLabel(polys: number[][][], name: string): { cx: num
   while (canvasAngle < -Math.PI / 2) canvasAngle += Math.PI;
 
   const span = Math.sqrt(Math.max(sxx, syy) / Math.max(1, n));
-  // Font size scaled to country span, clamped for legibility on texture
-  const fontSize = clamp(Math.round(14 + span * 1.3), 16, 32);
 
-  return { cx, cy, angle: canvasAngle, span, fontSize };
+  // Compute extents along principal axis u and orthogonal axis v
+  let minU = Infinity,
+    maxU = -Infinity,
+    minV = Infinity,
+    maxV = -Infinity;
+  for (const [x, y] of bestPoly) {
+    const dx = (x - cx) * cosLat;
+    const dy = y - cy;
+    const u = dx * Math.cos(angle) + dy * Math.sin(angle);
+    const v = -dx * Math.sin(angle) + dy * Math.cos(angle);
+    if (u < minU) minU = u;
+    if (u > maxU) maxU = u;
+    if (v < minV) minV = v;
+    if (v > maxV) maxV = v;
+  }
+
+  // Available pixel space inside the country border (with 25% safety margin)
+  const pxLen = (maxU - minU) * 11.38 * 0.75;
+  const pxHei = (maxV - minV) * 11.38 * 0.75;
+  const maxFontByLen = Math.floor(pxLen / Math.max(1, name.length * 0.65));
+  const maxFontByHei = Math.floor(pxHei * 0.85);
+  const fitFont = Math.min(maxFontByLen, maxFontByHei);
+
+  // Small countries (e.g. Panama, Belize, Luxembourg, Fiji) cannot fit readable text inside borders
+  const useCallout = fitFont < 13 || pxHei < 14 || pxLen < 32;
+
+  let calloutDx = cx > 0 ? 3.0 : -3.5;
+  let calloutDy = cy > 0 ? -2.2 : 2.2;
+  // Specific tuning for Central America / Caribbean
+  if (cx < -65 && cx > -95 && cy > 6 && cy < 22) {
+    calloutDx = -3.8;
+    calloutDy = 2.4;
+  }
+
+  const fontSize = useCallout ? 13 : clamp(Math.min(fitFont, Math.round(13 + span * 1.1)), 13, 28);
+  const maxLen = useCallout ? 300 : pxLen;
+
+  return { cx, cy, angle: canvasAngle, span, fontSize, maxLen, useCallout, calloutDx, calloutDy };
 }
 
 export function decodeTopoCountries(topo: any): Map<string, number[][][]> {

@@ -14,12 +14,9 @@ class App {
   sel = { mode: "none" as "none" | "lang" | "all", lang: null as string | null };
   selCountry: Country | null = null;
   layers: LayerState = {
-    terrain: true,
     borders: true,
     labels: true,
     pins: true,
-    clouds: true,
-    night: true,
   };
 
   private earthScene!: EarthScene;
@@ -76,6 +73,11 @@ class App {
       this.applySelection(); // Show All on startup
 
       this.pins = new PinManager(this.earthScene.scene, [...this.byCode.values()]);
+
+      this.ui.buildCountryList([...this.byCode.values()], c => {
+        this.selectCountry(c, false);
+        this.controls.focusGeo(c.center[1], c.center[0], 2.45, 900);
+      });
 
       this.bindUI();
 

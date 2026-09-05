@@ -204,7 +204,7 @@ export class EarthScene {
     countries: Country[],
     active: Set<string>,
     selCountry: Country | null,
-    layers: LayerState = { terrain: true, borders: true, labels: true, pins: true, clouds: true, night: true },
+    layers: LayerState = { borders: true, labels: true, pins: true },
     camDist = 3.0
   ) {
     const g = this.fillCtx,
@@ -248,7 +248,6 @@ export class EarthScene {
 
     // 3. Country Names / Labels (if enabled)
     if (layers.labels) {
-      const zoomScale = clamp(3.0 / camDist, 0.75, 1.8);
       for (const c of countries) {
         if (!c.label) continue;
         const isActive = active.has(c.meta.a2);
@@ -256,22 +255,33 @@ export class EarthScene {
 
         // Visibility filter based on country size / span and zoom distance
         if (!isActive && !isSelected) {
-          if (camDist > 3.8 && c.label.span < 8.0) continue;
-          if (camDist > 2.5 && c.label.span < 3.0) continue;
-          if (c.label.span < 0.8) continue;
+          if (camDist > 3.8 && c.label.span < 7.0 && !c.label.useCallout) continue;
+          if (camDist > 3.2 && c.label.span < 2.5 && !c.label.useCallout) continue;
+          if (c.label.span < 0.6) continue;
         }
 
         const x = ((c.label.cx + 180) / 360) * W;
         const y = ((90 - c.label.cy) / 180) * H;
-        const fSize = Math.round(c.label.fontSize * zoomScale);
 
-        this.drawCountryLabel(g, c.meta.name, x, y, c.label.angle, fSize, isSelected, isActive);
+        if (c.label.useCallout) {
+          this.drawCountryCallout(g, c.meta.name, x, y, c.label, isSelected, isActive);
+        } else {
+          this.drawCountryLabel(g, c.meta.name, x, y, c.label.angle, c.label.fontSize, c.label.maxLen, isSelected, isActive);
+        }
 
         // Near map edges, also render wrapped label so text near 180° meridian is never clipped
         if (x < 300) {
-          this.drawCountryLabel(g, c.meta.name, x + W, y, c.label.angle, fSize, isSelected, isActive);
+          if (c.label.useCallout) {
+            this.drawCountryCallout(g, c.meta.name, x + W, y, c.label, isSelected, isActive);
+          } else {
+            this.drawCountryLabel(g, c.meta.name, x + W, y, c.label.angle, c.label.fontSize, c.label.maxLen, isSelected, isActive);
+          }
         } else if (x > W - 300) {
-          this.drawCountryLabel(g, c.meta.name, x - W, y, c.label.angle, fSize, isSelected, isActive);
+          if (c.label.useCallout) {
+            this.drawCountryCallout(g, c.meta.name, x - W, y, c.label, isSelected, isActive);
+          } else {
+            this.drawCountryLabel(g, c.meta.name, x - W, y, c.label.angle, c.label.fontSize, c.label.maxLen, isSelected, isActive);
+          }
         }
       }
     }
@@ -287,6 +297,7 @@ export class EarthScene {
     y: number,
     angle: number,
     fontSize: number,
+    maxLen: number,
     isSelected: boolean,
     isActive: boolean
   ) {
@@ -295,11 +306,19 @@ export class EarthScene {
     g.rotate(angle);
     g.textAlign = "center";
     g.textBaseline = "middle";
-    g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${fontSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+
+    // Guarantee text never exceeds internal country border
+    let actualFontSize = fontSize;
+    g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${actualFontSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    let measuredWidth = g.measureText(name).width;
+    if (measuredWidth > maxLen && maxLen > 15) {
+      actualFontSize = Math.max(9, Math.floor(actualFontSize * (maxLen / measuredWidth)));
+      g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${actualFontSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    }
 
     // Crisp high-contrast outline
-    g.strokeStyle = "rgba(4, 8, 16, 0.92)";
-    g.lineWidth = Math.max(3, fontSize * 0.22);
+    g.strokeStyle = "rgba(4, 8, 16, 0.95)";
+    g.lineWidth = Math.max(3, actualFontSize * 0.22);
     g.lineJoin = "round";
     g.strokeText(name, 0, 0);
 
@@ -309,20 +328,67 @@ export class EarthScene {
     } else if (isActive) {
       g.fillStyle = "#e0f2fe";
     } else {
-      g.fillStyle = "rgba(224, 238, 255, 0.82)";
+      g.fillStyle = "rgba(224, 238, 255, 0.88)";
     }
     g.fillText(name, 0, 0);
     g.restore();
   }
 
+  private drawCountryCallout(
+    g: CanvasRenderingContext2D,
+    name: string,
+    x: number,
+    y: number,
+    label: CountryLabel,
+    isSelected: boolean,
+    isActive: boolean
+  ) {
+    const W = this.fillCv.width,
+      H = this.fillCv.height;
+    const dxPx = (label.calloutDx / 360) * W;
+    const dyPx = (-label.calloutDy / 180) * H;
+    const targetX = x + dxPx;
+    const targetY = y + dyPx;
+    const isLeft = dxPx < 0;
+    const tickLen = isLeft ? -14 : 14;
+
+    // White dot at country center
+    g.beginPath();
+    g.arc(x, y, 2.2, 0, Math.PI * 2);
+    g.fillStyle = "rgba(255, 255, 255, 0.95)";
+    g.fill();
+
+    // Clean leader line to open space
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(targetX, targetY);
+    g.lineTo(targetX + tickLen, targetY);
+    g.strokeStyle = "rgba(255, 255, 255, 0.82)";
+    g.lineWidth = 1.3;
+    g.lineCap = "round";
+    g.lineJoin = "round";
+    g.stroke();
+
+    // Country name at end of leader line
+    const textX = targetX + tickLen + (isLeft ? -4 : 4);
+    const textY = targetY;
+    g.save();
+    g.textAlign = isLeft ? "right" : "left";
+    g.textBaseline = "middle";
+    const fSize = 13;
+    g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${fSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+
+    g.strokeStyle = "rgba(4, 8, 16, 0.95)";
+    g.lineWidth = 3.5;
+    g.strokeText(name, textX, textY);
+
+    g.fillStyle = isSelected ? "#ffffff" : isActive ? "#e0f2fe" : "rgba(235, 245, 255, 0.92)";
+    g.fillText(name, textX, textY);
+    g.restore();
+  }
+
   setLayer(name: keyof LayerState, val: boolean) {
-    if (name === "terrain") {
-      this.earthMat.uniforms.useBump.value = val ? 1.0 : 0.0;
-    } else if (name === "night") {
-      this.earthMat.uniforms.useNight.value = val ? 1.0 : 0.0;
-    } else if (name === "clouds") {
-      if (this.cloudMesh) this.cloudMesh.visible = val;
-    } else if (name === "borders" || name === "labels") {
+    if (name === "borders" || name === "labels") {
       this.overlayDirty = true;
     }
   }
