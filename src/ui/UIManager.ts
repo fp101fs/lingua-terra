@@ -1,6 +1,6 @@
 import { CREDIT } from "../constants";
 import { LANGS, langName, statusOf, flagOf } from "../data/languages";
-import type { Country } from "../types";
+import type { Country, LayerState } from "../types";
 import { fmtPop, cssHsl } from "../utils/geo";
 
 export interface UIEvents {
@@ -9,6 +9,7 @@ export interface UIEvents {
   onSelectLang(id: string | null): void;
   onCloseCard(): void;
   onCanvasClick(e: MouseEvent): void;
+  onToggleLayer(layer: keyof LayerState): void;
 }
 
 export class UIManager {
@@ -23,6 +24,32 @@ export class UIManager {
           <div class="dock-head" id="dockHead">
             <div class="brand"><span class="logo">LINGUA·<em>TERRA</em></span><span class="sub">world language atlas</span></div>
             <div class="dock-sub">Where the world's languages are official</div>
+          </div>
+          <div class="dock-layers" id="dockLayers">
+            <button class="layer-btn on" data-layer="terrain" title="Terrain Relief & Specular">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="m8 3 4 8 5-5 5 15H2L8 3z"/></svg>
+              <span>Terrain</span>
+            </button>
+            <button class="layer-btn on" data-layer="borders" title="Country Borders">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20M12 2a14.5 14.5 0 0 1 0 20M2 12h20"/></svg>
+              <span>Borders</span>
+            </button>
+            <button class="layer-btn on" data-layer="labels" title="Country Names (widest angle)">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="m4 19 4.5-12L13 19M5.5 14.5h6M15 9h6M17 6h4M17 12h4"/></svg>
+              <span>Names</span>
+            </button>
+            <button class="layer-btn on" data-layer="pins" title="Language Map Pins">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+              <span>Pins</span>
+            </button>
+            <button class="layer-btn on" data-layer="clouds" title="Drifting Cloud Layer">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+              <span>Clouds</span>
+            </button>
+            <button class="layer-btn on" data-layer="night" title="City Night Lights">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+              <span>Night</span>
+            </button>
           </div>
           <div class="dock-actions">
             <button class="chip" id="btnAll">✦ Show all</button>
@@ -42,6 +69,7 @@ export class UIManager {
     [
       "gl",
       "dock",
+      "dockLayers",
       "langs",
       "card",
       "cardIn",
@@ -155,6 +183,17 @@ export class UIManager {
     card.classList.add("show");
   }
 
+  updateLayersState(layers: LayerState) {
+    const box = this.el.dockLayers;
+    if (!box) return;
+    box.querySelectorAll(".layer-btn").forEach(btn => {
+      const l = (btn as HTMLElement).dataset.layer as keyof LayerState;
+      if (l in layers) {
+        btn.classList.toggle("on", !!layers[l]);
+      }
+    });
+  }
+
   bindEvents(events: UIEvents) {
     this.el.btnAll.addEventListener("click", () => events.onSelectAll());
     this.el.btnClear.addEventListener("click", () => events.onClear());
@@ -163,5 +202,12 @@ export class UIManager {
       if (matchMedia("(max-width:860px)").matches) this.el.dock.classList.toggle("open");
     });
     (this.el.gl as HTMLCanvasElement).addEventListener("click", e => events.onCanvasClick(e));
+
+    this.el.dockLayers.querySelectorAll(".layer-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const layer = (btn as HTMLElement).dataset.layer as keyof LayerState;
+        events.onToggleLayer(layer);
+      });
+    });
   }
 }

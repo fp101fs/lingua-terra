@@ -55,6 +55,110 @@ export function deterministicColor(a2: string): [number, number, number] {
   ];
 }
 
+export function splitAntimeridian(ring: [number, number][]): [number, number][][] {
+  if (ring.length < 3) return [ring];
+  let crosses = false;
+  for (let i = 0; i < ring.length - 1; i++) {
+    if (Math.abs(ring[i + 1][0] - ring[i][0]) > 180) {
+      crosses = true;
+      break;
+    }
+  }
+  if (!crosses) return [ring];
+
+  const segments: [number, number][][] = [];
+  let currentSeg: [number, number][] = [ring[0]];
+  for (let i = 0; i < ring.length - 1; i++) {
+    const p0 = ring[i];
+    const p1 = ring[i + 1];
+    const dLon = p1[0] - p0[0];
+    if (Math.abs(dLon) > 180) {
+      const lon0 = p0[0],
+        lon1 = p1[0];
+      const lat0 = p0[1],
+        lat1 = p1[1];
+      let t: number, latEdge: number;
+      if (lon0 > 0) {
+        // Crossing +180 towards -180
+        t = (180 - lon0) / (lon1 + 360 - lon0);
+        latEdge = lat0 + t * (lat1 - lat0);
+        currentSeg.push([180, latEdge]);
+        segments.push(currentSeg);
+        currentSeg = [[-180, latEdge]];
+      } else {
+        // Crossing -180 towards +180
+        t = (-180 - lon0) / (lon1 - 360 - lon0);
+        latEdge = lat0 + t * (lat1 - lat0);
+        currentSeg.push([-180, latEdge]);
+        segments.push(currentSeg);
+        currentSeg = [[180, latEdge]];
+      }
+    }
+    currentSeg.push(p1);
+  }
+  if (currentSeg.length > 1) {
+    segments.push(currentSeg);
+  }
+  return segments;
+}
+
+export function computeWidestLabel(polys: number[][][], name: string): { cx: number; cy: number; angle: number; span: number; fontSize: number } {
+  if (!polys.length) return { cx: 0, cy: 0, angle: 0, span: 5, fontSize: 20 };
+
+  // Find the largest polygon by vertex count and bounding box
+  let bestPoly = polys[0];
+  let maxWeight = 0;
+  for (const poly of polys) {
+    if (poly.length < 3) continue;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const [x, y] of poly) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    const weight = (maxX - minX) * (maxY - minY) * poly.length;
+    if (weight > maxWeight) {
+      maxWeight = weight;
+      bestPoly = poly;
+    }
+  }
+
+  // Calculate centroid of the main polygon
+  let cx = 0, cy = 0;
+  for (const [x, y] of bestPoly) {
+    cx += x;
+    cy += y;
+  }
+  cx /= bestPoly.length;
+  cy /= bestPoly.length;
+
+  // Covariance matrix of points projected with latitude scaling
+  const cosLat = Math.cos((cy * Math.PI) / 180);
+  let sxx = 0, syy = 0, sxy = 0;
+  for (const [x, y] of bestPoly) {
+    const dx = (x - cx) * cosLat;
+    const dy = y - cy;
+    sxx += dx * dx;
+    syy += dy * dy;
+    sxy += dx * dy;
+  }
+  const n = bestPoly.length;
+  // Principal axis angle
+  const angle = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+  // In canvas coordinates, y increases downward, so invert angle
+  let canvasAngle = -angle;
+  // Keep text right-side up (-pi/2 to pi/2)
+  while (canvasAngle > Math.PI / 2) canvasAngle -= Math.PI;
+  while (canvasAngle < -Math.PI / 2) canvasAngle += Math.PI;
+
+  const span = Math.sqrt(Math.max(sxx, syy) / Math.max(1, n));
+  // Font size scaled to country span, clamped for legibility on texture
+  const fontSize = clamp(Math.round(14 + span * 1.3), 16, 32);
+
+  return { cx, cy, angle: canvasAngle, span, fontSize };
+}
+
 export function decodeTopoCountries(topo: any): Map<string, number[][][]> {
   const tf = topo.transform,
     tr = topo.objects.countries.geometries;
@@ -86,7 +190,12 @@ export function decodeTopoCountries(topo: any): Map<string, number[][][]> {
     const id = String(g.id).padStart(3, "0");
     const polys: number[][][] = [];
     const parts = g.type === "Polygon" ? [g.arcs] : g.type === "MultiPolygon" ? g.arcs : [];
-    for (const poly of parts) polys.push(...poly.map(ringArcs));
+    for (const poly of parts) {
+      for (const ring of poly.map(ringArcs)) {
+        const split = splitAntimeridian(ring as [number, number][]);
+        polys.push(...split);
+      }
+    }
     out.set(id, polys);
   }
   return out;

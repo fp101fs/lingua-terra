@@ -113,6 +113,58 @@ body {
   color: var(--dim);
 }
 
+.dock-layers {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  padding: 4px 12px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.layer-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 2px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--dim);
+  cursor: pointer;
+  transition: all 0.16s ease;
+  font-size: 9.5px;
+  font-weight: 500;
+  user-select: none;
+}
+
+.layer-btn svg {
+  opacity: 0.55;
+  transition: opacity 0.16s, transform 0.16s;
+}
+
+.layer-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+}
+
+.layer-btn:hover svg {
+  opacity: 0.85;
+}
+
+.layer-btn.on {
+  background: rgba(111, 183, 255, 0.14);
+  border-color: rgba(111, 183, 255, 0.4);
+  color: #cde4ff;
+}
+
+.layer-btn.on svg {
+  opacity: 1;
+  stroke: #7ec0ff;
+  filter: drop-shadow(0 0 4px rgba(111, 183, 255, 0.5));
+}
+
 .dock-actions {
   display: flex;
   gap: 8px;

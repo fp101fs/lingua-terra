@@ -1,5 +1,5 @@
 import { R, R_OVER, TEX } from "../constants";
-import type { Country } from "../types";
+import type { Country, LayerState } from "../types";
 import { cssHsl, clamp, wrapLon } from "../utils/geo";
 
 export class EarthScene {
@@ -42,6 +42,8 @@ export class EarthScene {
         nightMap: { value: texN },
         bumpMap: { value: texB },
         sunDir: { value: new THREE.Vector3(1, 0, 0) },
+        useBump: { value: 1.0 },
+        useNight: { value: 1.0 },
       },
       vertexShader: `
         varying vec2 vUv; varying vec3 vN; varying vec3 vP;
@@ -51,11 +53,12 @@ export class EarthScene {
           gl_Position = projectionMatrix * viewMatrix * wp; }`,
       fragmentShader: `
         uniform sampler2D dayMap, nightMap, bumpMap; uniform vec3 sunDir;
+        uniform float useBump, useNight;
         varying vec2 vUv; varying vec3 vN; varying vec3 vP;
         void main(){
           vec3 day = texture2D(dayMap, vUv).rgb;
-          vec3 night = texture2D(nightMap, vUv).rgb;
-          float bump = texture2D(bumpMap, vUv).r;
+          vec3 night = useNight > 0.5 ? texture2D(nightMap, vUv).rgb : vec3(0.0);
+          float bump = useBump > 0.5 ? texture2D(bumpMap, vUv).r : 0.05;
           vec3 sd = normalize(sunDir);
           float lambert = dot(normalize(vN), sd);
           float dayAmt = smoothstep(-0.12, 0.30, lambert);
@@ -147,21 +150,16 @@ export class EarthScene {
     this.renderer.setSize(w, h);
   }
 
-  private tracePoly(g: CanvasRenderingContext2D, poly: number[][], W: number, H: number, shift: number) {
+  private tracePoly(g: CanvasRenderingContext2D, poly: number[][], W: number, H: number) {
+    if (poly.length < 2) return;
     for (let i = 0; i < poly.length; i++) {
-      const x = ((poly[i][0] + shift + 180) / 360) * W,
+      const x = ((poly[i][0] + 180) / 360) * W,
         y = ((90 - poly[i][1]) / 180) * H;
       i ? g.lineTo(x, y) : g.moveTo(x, y);
     }
-    g.closePath();
-  }
-
-  private eachDraw(c: Country, fn: (shift: number) => void) {
-    fn(0);
-    const touchesAntimeridian = c.polys.some(p => p.some(([lo]) => lo > 165 || lo < -165));
-    if (touchesAntimeridian) {
-      fn(360);
-      fn(-360);
+    const d0 = poly[0], d1 = poly[poly.length - 1];
+    if (Math.hypot(d0[0] - d1[0], d0[1] - d1[1]) < 1.0) {
+      g.closePath();
     }
   }
 
@@ -181,11 +179,9 @@ export class EarthScene {
         gg = (i >> 8) & 255,
         b = (i >> 16) & 255;
       g.fillStyle = `rgb(${r},${gg},${b})`;
-      this.eachDraw(c, sh => {
-        g.beginPath();
-        for (const p of c.polys) this.tracePoly(g, p, W, H, sh);
-        g.fill("evenodd");
-      });
+      g.beginPath();
+      for (const p of c.polys) this.tracePoly(g, p, W, H);
+      g.fill("evenodd");
       i++;
     }
     this.pickData = g.getImageData(0, 0, W, H).data;
@@ -204,51 +200,131 @@ export class EarthScene {
     return countries[idx - 1] ?? null;
   }
 
-  buildOverlayTexture(countries: Country[], active: Set<string>, selCountry: Country | null) {
+  buildOverlayTexture(
+    countries: Country[],
+    active: Set<string>,
+    selCountry: Country | null,
+    layers: LayerState = { terrain: true, borders: true, labels: true, pins: true, clouds: true, night: true },
+    camDist = 3.0
+  ) {
     const g = this.fillCtx,
       W = this.fillCv.width,
       H = this.fillCv.height;
     g.clearRect(0, 0, W, H);
 
-    // Fills
+    // 1. Fills
     for (const c of countries) {
       if (!active.has(c.meta.a2)) continue;
       const em = selCountry === c;
       g.fillStyle = cssHsl(c.color, em ? 0.46 : 0.32);
-      this.eachDraw(c, sh => {
-        g.beginPath();
-        for (const p of c.polys) this.tracePoly(g, p, W, H, sh);
-        g.fill("evenodd");
-      });
+      g.beginPath();
+      for (const p of c.polys) this.tracePoly(g, p, W, H);
+      g.fill("evenodd");
     }
 
-    // Crisp borders — subtle global borders, bright active borders
-    g.lineJoin = "round";
-    g.lineCap = "round";
-    g.strokeStyle = "rgba(255,255,255,0.28)";
-    g.lineWidth = 1.6;
-    for (const c of countries) {
-      this.eachDraw(c, sh => {
+    // 2. Borders (if enabled)
+    if (layers.borders) {
+      g.lineJoin = "round";
+      g.lineCap = "round";
+      g.strokeStyle = "rgba(255,255,255,0.28)";
+      g.lineWidth = 1.6;
+      for (const c of countries) {
         g.beginPath();
-        for (const p of c.polys) this.tracePoly(g, p, W, H, sh);
+        for (const p of c.polys) this.tracePoly(g, p, W, H);
         g.stroke();
-      });
+      }
+
+      // Active / highlighted borders
+      for (const c of countries) {
+        if (!active.has(c.meta.a2)) continue;
+        const em = selCountry === c;
+        g.strokeStyle = cssHsl(c.color, em ? 1 : 0.95, 18);
+        g.lineWidth = em ? 4.5 : 3.0;
+        g.beginPath();
+        for (const p of c.polys) this.tracePoly(g, p, W, H);
+        g.stroke();
+      }
     }
 
-    for (const c of countries) {
-      if (!active.has(c.meta.a2)) continue;
-      const em = selCountry === c;
-      g.strokeStyle = cssHsl(c.color, em ? 1 : 0.95, 18);
-      g.lineWidth = em ? 4.5 : 3.0;
-      this.eachDraw(c, sh => {
-        g.beginPath();
-        for (const p of c.polys) this.tracePoly(g, p, W, H, sh);
-        g.stroke();
-      });
+    // 3. Country Names / Labels (if enabled)
+    if (layers.labels) {
+      const zoomScale = clamp(3.0 / camDist, 0.75, 1.8);
+      for (const c of countries) {
+        if (!c.label) continue;
+        const isActive = active.has(c.meta.a2);
+        const isSelected = selCountry === c;
+
+        // Visibility filter based on country size / span and zoom distance
+        if (!isActive && !isSelected) {
+          if (camDist > 3.8 && c.label.span < 8.0) continue;
+          if (camDist > 2.5 && c.label.span < 3.0) continue;
+          if (c.label.span < 0.8) continue;
+        }
+
+        const x = ((c.label.cx + 180) / 360) * W;
+        const y = ((90 - c.label.cy) / 180) * H;
+        const fSize = Math.round(c.label.fontSize * zoomScale);
+
+        this.drawCountryLabel(g, c.meta.name, x, y, c.label.angle, fSize, isSelected, isActive);
+
+        // Near map edges, also render wrapped label so text near 180° meridian is never clipped
+        if (x < 300) {
+          this.drawCountryLabel(g, c.meta.name, x + W, y, c.label.angle, fSize, isSelected, isActive);
+        } else if (x > W - 300) {
+          this.drawCountryLabel(g, c.meta.name, x - W, y, c.label.angle, fSize, isSelected, isActive);
+        }
+      }
     }
 
     this.fillTex.needsUpdate = true;
     this.overlayDirty = false;
+  }
+
+  private drawCountryLabel(
+    g: CanvasRenderingContext2D,
+    name: string,
+    x: number,
+    y: number,
+    angle: number,
+    fontSize: number,
+    isSelected: boolean,
+    isActive: boolean
+  ) {
+    g.save();
+    g.translate(x, y);
+    g.rotate(angle);
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${fontSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+
+    // Crisp high-contrast outline
+    g.strokeStyle = "rgba(4, 8, 16, 0.92)";
+    g.lineWidth = Math.max(3, fontSize * 0.22);
+    g.lineJoin = "round";
+    g.strokeText(name, 0, 0);
+
+    // Text fill
+    if (isSelected) {
+      g.fillStyle = "#ffffff";
+    } else if (isActive) {
+      g.fillStyle = "#e0f2fe";
+    } else {
+      g.fillStyle = "rgba(224, 238, 255, 0.82)";
+    }
+    g.fillText(name, 0, 0);
+    g.restore();
+  }
+
+  setLayer(name: keyof LayerState, val: boolean) {
+    if (name === "terrain") {
+      this.earthMat.uniforms.useBump.value = val ? 1.0 : 0.0;
+    } else if (name === "night") {
+      this.earthMat.uniforms.useNight.value = val ? 1.0 : 0.0;
+    } else if (name === "clouds") {
+      if (this.cloudMesh) this.cloudMesh.visible = val;
+    } else if (name === "borders" || name === "labels") {
+      this.overlayDirty = true;
+    }
   }
 
   updateSunAndClouds() {

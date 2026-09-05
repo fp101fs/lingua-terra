@@ -108,11 +108,11 @@ export class GlobeControls {
       if (ang > maxA) maxA = ang;
     }
     const d = clamp(
-      (R / Math.sin(Math.min(Math.PI / 2 - 0.06, maxA * 1.22))) * 1.06,
-      MIN_DIST + 0.06,
-      4.6
+      2.4 + (maxA > 0.4 ? (maxA - 0.4) * 0.75 : 0),
+      2.3,
+      3.2
     );
-    this.focusGeo(g.lat, g.lon, d, 1100);
+    this.focusGeo(g.lat, g.lon, d, 1000);
   }
 
   /* ------- events ------- */

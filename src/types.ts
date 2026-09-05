@@ -15,6 +15,14 @@ export interface CMeta {
   pop: number;
 }
 
+export interface CountryLabel {
+  cx: number;
+  cy: number;
+  angle: number; // canvas radians
+  span: number; // visual scale / importance
+  fontSize: number; // base font size in canvas px
+}
+
 export interface Country {
   meta: CMeta;
   polys: number[][][]; // [poly][vertex] = [lon, lat]
@@ -22,6 +30,16 @@ export interface Country {
   angRad: number; // angular radius (radians) for framing
   color: [number, number, number]; // HSL 0-1
   langs: string[]; // language ids
+  label?: CountryLabel;
+}
+
+export interface LayerState {
+  terrain: boolean;
+  borders: boolean;
+  labels: boolean;
+  pins: boolean;
+  clouds: boolean;
+  night: boolean;
 }
 
 export interface LangStat {

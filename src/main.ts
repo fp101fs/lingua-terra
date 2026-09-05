@@ -1,8 +1,8 @@
 import "./ui/styles.css";
-import type { Country } from "./types";
+import type { Country, LayerState } from "./types";
 import { START, BORDERS_URL } from "./constants";
 import { NUM, LANGS, langName } from "./data/languages";
-import { deterministicColor, decodeTopoCountries, geoToVec3, vecToGeo, wrapLon, clamp } from "./utils/geo";
+import { deterministicColor, decodeTopoCountries, computeWidestLabel, geoToVec3, vecToGeo, wrapLon, clamp } from "./utils/geo";
 import { GlobeControls } from "./components/GlobeControls";
 import { PinManager } from "./components/PinManager";
 import { EarthScene } from "./components/EarthScene";
@@ -13,6 +13,14 @@ class App {
   byCode = new Map<string, Country>();
   sel = { mode: "none" as "none" | "lang" | "all", lang: null as string | null };
   selCountry: Country | null = null;
+  layers: LayerState = {
+    terrain: true,
+    borders: true,
+    labels: true,
+    pins: true,
+    clouds: true,
+    night: true,
+  };
 
   private earthScene!: EarthScene;
   private controls!: GlobeControls;
@@ -21,6 +29,7 @@ class App {
 
   private hoverCode: string | null = null;
   private lastHoverPx = 0;
+  private lastLabelDist = 3.0;
   private frames = 0;
   private fpsT = performance.now();
 
@@ -57,7 +66,13 @@ class App {
 
       this.ui.setLoadingMessage("Mapping languages…");
       this.earthScene.buildIndexRaster([...this.countries.values()]);
-      this.earthScene.buildOverlayTexture([...this.byCode.values()], this.activeCodes(), this.selCountry);
+      this.earthScene.buildOverlayTexture(
+        [...this.byCode.values()],
+        this.activeCodes(),
+        this.selCountry,
+        this.layers,
+        this.earthScene.cam.position.length()
+      );
       this.applySelection(); // Show All on startup
 
       this.pins = new PinManager(this.earthScene.scene, [...this.byCode.values()]);
@@ -101,11 +116,8 @@ class App {
         n = 0;
       for (const ring of rawPolys) {
         if (ring.length < 3) continue;
-        const first = ring[0];
-        const off = wrapLon(first[0]) - first[0]; // normalize ring across antimeridian
-        const poly = ring.map(([lo, la]) => [wrapLon(lo + off), la]);
-        polys.push(poly);
-        for (const [lo, la] of poly) {
+        polys.push(ring);
+        for (const [lo, la] of ring) {
           const v = geoToVec3(la, lo, 1);
           x += v.x;
           y += v.y;
@@ -131,6 +143,7 @@ class App {
         angRad: maxAng,
         color: deterministicColor(a2),
         langs: [],
+        label: computeWidestLabel(polys, name),
       };
       this.countries.set(numId, c);
       this.byCode.set(a2, c);
@@ -213,7 +226,18 @@ class App {
   }
 
   private refreshPins() {
-    this.pins?.update(this.earthScene.cam, this.activeCodes());
+    this.pins?.update(this.earthScene.cam, this.activeCodes(), this.layers.pins);
+  }
+
+  toggleLayer(layer: keyof LayerState) {
+    this.layers[layer] = !this.layers[layer];
+    this.earthScene.setLayer(layer, this.layers[layer]);
+    if (layer === "pins") {
+      this.refreshPins();
+    }
+    this.earthScene.overlayDirty = true;
+    this.ui.updateLayersState(this.layers);
+    this.controls.kick();
   }
 
   private bindUI() {
@@ -229,13 +253,25 @@ class App {
         const code = this.pickAt(e.clientX, e.clientY);
         this.selectCountry(code ? this.byCode.get(code)! : null);
       },
+      onToggleLayer: layer => this.toggleLayer(layer),
     });
   }
 
   private loop = () => {
     requestAnimationFrame(this.loop);
+    const camDist = this.earthScene.cam.position.length();
+    if (Math.abs(camDist - this.lastLabelDist) > 0.35) {
+      this.lastLabelDist = camDist;
+      this.earthScene.overlayDirty = true;
+    }
     if (this.earthScene.overlayDirty) {
-      this.earthScene.buildOverlayTexture([...this.byCode.values()], this.activeCodes(), this.selCountry);
+      this.earthScene.buildOverlayTexture(
+        [...this.byCode.values()],
+        this.activeCodes(),
+        this.selCountry,
+        this.layers,
+        camDist
+      );
     }
     this.earthScene.updateSunAndClouds();
     this.refreshPins();
