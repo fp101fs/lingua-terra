@@ -716,8 +716,8 @@ class App {
         <div id="load"><div class="orb"></div><div class="t">LINGUA·<em>TERRA</em></div>
           <div id="loadmsg">Preparing the planet…</div><div id="loaderr"></div></div>
       </div>`;
-    ["dock", "langs", "card", "cardIn", "cardX", "hint", "load", "loadmsg", "loaderr",
-     "btnAll", "btnClear", "dockHead", "fps"].forEach(id => this.el[id] = document.getElementById(id)!);
+    ["gl", "dock", "langs", "card", "cardIn", "cardX", "hint", "load", "loadmsg", "loaderr",
+     "btnAll", "btnClear", "dockHead", "fps", "attrib"].forEach(id => this.el[id] = document.getElementById(id)!);
     this.buildLangButtons();
 
     const msg = (t: string) => { this.el.loadmsg.textContent = t };
