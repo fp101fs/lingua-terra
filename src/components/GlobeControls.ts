@@ -17,14 +17,12 @@ export class GlobeControls {
   private pts: { x: number; y: number }[] = [];
   private dragging = false;
   private pinching = false;
-  private panning = false;
   private lastTap = 0;
   private moved = 0;
   private downT = 0;
   private zoomAnim: { f: number; t: number; d0: number; d1: number; c0: V3; c1: V3 } | null = null;
   private opt: CtrlOpt;
   private raf = 0;
-  private lastPan = 0;
 
   constructor(cam: any, dom: HTMLElement, opt: CtrlOpt) {
     this.cam = cam;
@@ -163,34 +161,13 @@ export class GlobeControls {
       const [a, b] = this.pts,
         d = Math.hypot(a.x - b.x, a.y - b.y);
       if ((this as any)._pd) {
-        const f = this.focal();
         this.tDist = clamp(
           this.tDist * ((this as any)._pd / Math.max(20, d)),
           MIN_DIST,
           MAX_DIST
         );
-        const mx = (a.x + b.x) / 2,
-          my = (a.y + b.y) / 2;
-        const pmx = (this as any)._pmx,
-          pmy = (this as any)._pmy;
-        if (performance.now() - this.lastPan > 40) {
-          this.tLon = wrapLon(
-            this.tLon -
-              (((mx - pmx) / f) * this.tDist) /
-                Math.cos((clamp(this.tLat, -85, 85) * Math.PI) / 180) *
-                (180 / Math.PI)
-          );
-          this.tLat = clamp(
-            this.tLat + (((my - pmy) / f) * this.tDist * 180) / Math.PI,
-            -85,
-            85
-          );
-          this.lastPan = performance.now();
-        }
       }
       (this as any)._pd = d;
-      (this as any)._pmx = (a.x + b.x) / 2;
-      (this as any)._pmy = (a.y + b.y) / 2;
       this.kick();
       return;
     }
@@ -251,42 +228,19 @@ export class GlobeControls {
   private onWheel = (e: WheelEvent) => {
     e.preventDefault();
     this.zoomAnim = null;
+    let factor = 1;
     if (e.ctrlKey || e.metaKey) {
-      // trackpad pinch
-      const k = Math.pow(1.012, e.deltaY);
-      this.zoomAt(e.clientX, e.clientY, this.tDist * k);
-    } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-      // two-finger horizontal: rotate
-      this.tLon = wrapLon(this.tLon - e.deltaX * 0.03 * (this.tDist / 3));
-      this.tLat = clamp(this.tLat - e.deltaY * 0.03 * (this.tDist / 3), -85, 85);
+      // trackpad pinch gesture
+      factor = Math.pow(1.012, e.deltaY);
     } else {
-      // wheel / two-finger vertical
+      // trackpad two-finger vertical scroll or mouse wheel
       let dy = clamp(e.deltaY, -260, 260);
       if (e.deltaMode === 1) dy *= 32;
-      const k = Math.pow(1.0015, dy);
-      this.zoomAt(e.clientX, e.clientY, this.tDist * k);
+      factor = Math.pow(1.0015, dy);
     }
+    this.tDist = clamp(this.tDist * factor, MIN_DIST, MAX_DIST);
     this.kick();
   };
-
-  private zoomAt(cx: number, cy: number, nd: number) {
-    nd = clamp(nd, MIN_DIST, MAX_DIST);
-    const g = this.cursorGroundPoint(cx, cy);
-    if (g) {
-      const { lat, lon } = vecToGeo(g);
-      const cosL = Math.max(0.12, Math.cos((lat * Math.PI) / 180));
-      const r = this.dom.getBoundingClientRect();
-      const fx = cx - r.left - r.width / 2,
-        fy = -(cy - r.top - r.height / 2);
-      const f = this.focal(),
-        ratio = nd / this.tDist - 1;
-      const dLon = (((-fx / f) * ratio * (180 / Math.PI)) / cosL) * 0.9;
-      const dLat = (fy / f) * ratio * (180 / Math.PI) * 0.9;
-      this.tLon = wrapLon(lon + dLon);
-      this.tLat = clamp(lat + dLat, -85, 85);
-    }
-    this.tDist = nd;
-  }
 
   private onDbl = (e: MouseEvent) => {
     e.preventDefault();
