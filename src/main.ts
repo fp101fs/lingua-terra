@@ -31,7 +31,7 @@ class App {
   private sortedCountries: Country[] = [];
   private zoomRedrawTimer: any = null;
   private lastPinDist = 0;
-  private lastPinCamPos = new THREE.Vector3();
+  private lastPinCamPos: any = null;
   private frames = 0;
   private fpsT = performance.now();
 
@@ -274,6 +274,7 @@ class App {
       this.pins.update(this.earthScene.cam, this.activeCodes(), false);
       return;
     }
+    if (!this.lastPinCamPos) this.lastPinCamPos = new THREE.Vector3();
     const camPos = this.earthScene.cam.position;
     if (!force) {
       const dPos = camPos.distanceToSquared(this.lastPinCamPos);
