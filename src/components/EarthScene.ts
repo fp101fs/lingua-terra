@@ -248,7 +248,26 @@ export class EarthScene {
 
     // 3. Country Names / Labels (if enabled)
     if (layers.labels) {
-      for (const c of countries) {
+      const placedBoxes: { minX: number; minY: number; maxX: number; maxY: number }[] = [];
+
+      // Sort countries: selected first, active languages second, then largest countries first
+      const sorted = [...countries].sort((a, b) => {
+        const aSel = selCountry === a ? 1 : 0;
+        const bSel = selCountry === b ? 1 : 0;
+        if (aSel !== bSel) return bSel - aSel;
+
+        const aAct = active.has(a.meta.a2) ? 1 : 0;
+        const bAct = active.has(b.meta.a2) ? 1 : 0;
+        if (aAct !== bAct) return bAct - aAct;
+
+        const aCall = a.label?.useCallout ? 0 : 1;
+        const bCall = b.label?.useCallout ? 0 : 1;
+        if (aCall !== bCall) return bCall - aCall;
+
+        return (b.label?.span ?? 0) - (a.label?.span ?? 0);
+      });
+
+      for (const c of sorted) {
         if (!c.label) continue;
         const isActive = active.has(c.meta.a2);
         const isSelected = selCountry === c;
@@ -264,24 +283,11 @@ export class EarthScene {
         const y = ((90 - c.label.cy) / 180) * H;
 
         if (c.label.useCallout) {
-          this.drawCountryCallout(g, c.meta.name, x, y, c.label, isSelected, isActive);
+          const box = this.tryDrawCountryCallout(g, c.meta.name, x, y, c.label, isSelected, isActive, placedBoxes);
+          if (box) placedBoxes.push(box);
         } else {
-          this.drawCountryLabel(g, c.meta.name, x, y, c.label.angle, c.label.fontSize, c.label.maxLen, isSelected, isActive);
-        }
-
-        // Near map edges, also render wrapped label so text near 180° meridian is never clipped
-        if (x < 300) {
-          if (c.label.useCallout) {
-            this.drawCountryCallout(g, c.meta.name, x + W, y, c.label, isSelected, isActive);
-          } else {
-            this.drawCountryLabel(g, c.meta.name, x + W, y, c.label.angle, c.label.fontSize, c.label.maxLen, isSelected, isActive);
-          }
-        } else if (x > W - 300) {
-          if (c.label.useCallout) {
-            this.drawCountryCallout(g, c.meta.name, x - W, y, c.label, isSelected, isActive);
-          } else {
-            this.drawCountryLabel(g, c.meta.name, x - W, y, c.label.angle, c.label.fontSize, c.label.maxLen, isSelected, isActive);
-          }
+          const box = this.tryDrawCountryLabel(g, c.meta.name, x, y, c.label.angle, c.label.fontSize, c.label.maxLen, isSelected, isActive, placedBoxes);
+          if (box) placedBoxes.push(box);
         }
       }
     }
@@ -290,7 +296,30 @@ export class EarthScene {
     this.overlayDirty = false;
   }
 
-  private drawCountryLabel(
+  private boxCollides(
+    box: { minX: number; minY: number; maxX: number; maxY: number },
+    placed: { minX: number; minY: number; maxX: number; maxY: number }[],
+    W: number
+  ): boolean {
+    const pad = 3;
+    const bMinX = box.minX - pad,
+      bMaxX = box.maxX + pad;
+    const bMinY = box.minY - pad,
+      bMaxY = box.maxY + pad;
+
+    for (const p of placed) {
+      if (!(bMaxX < p.minX || bMinX > p.maxX || bMaxY < p.minY || bMinY > p.maxY)) return true;
+      if (bMinX < 400) {
+        if (!(bMaxX + W < p.minX || bMinX + W > p.maxX || bMaxY < p.minY || bMinY > p.maxY)) return true;
+      }
+      if (bMaxX > W - 400) {
+        if (!(bMaxX - W < p.minX || bMinX - W > p.maxX || bMaxY < p.minY || bMinY > p.maxY)) return true;
+      }
+    }
+    return false;
+  }
+
+  private tryDrawCountryLabel(
     g: CanvasRenderingContext2D,
     name: string,
     x: number,
@@ -299,13 +328,10 @@ export class EarthScene {
     fontSize: number,
     maxLen: number,
     isSelected: boolean,
-    isActive: boolean
-  ) {
-    g.save();
-    g.translate(x, y);
-    g.rotate(angle);
-    g.textAlign = "center";
-    g.textBaseline = "middle";
+    isActive: boolean,
+    placedBoxes: { minX: number; minY: number; maxX: number; maxY: number }[]
+  ): { minX: number; minY: number; maxX: number; maxY: number } | null {
+    const W = this.fillCv.width;
 
     // Guarantee text never exceeds internal country border
     let actualFontSize = fontSize;
@@ -314,76 +340,234 @@ export class EarthScene {
     if (measuredWidth > maxLen && maxLen > 15) {
       actualFontSize = Math.max(9, Math.floor(actualFontSize * (maxLen / measuredWidth)));
       g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${actualFontSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+      measuredWidth = g.measureText(name).width;
     }
 
-    // Crisp high-contrast outline
-    g.strokeStyle = "rgba(4, 8, 16, 0.95)";
-    g.lineWidth = Math.max(3, actualFontSize * 0.22);
-    g.lineJoin = "round";
-    g.strokeText(name, 0, 0);
+    const textH = actualFontSize + 4;
+    const cos = Math.abs(Math.cos(angle));
+    const sin = Math.abs(Math.sin(angle));
+    const halfW = (measuredWidth * cos + textH * sin) / 2 + 4;
+    const halfH = (measuredWidth * sin + textH * cos) / 2 + 4;
 
-    // Text fill
-    if (isSelected) {
-      g.fillStyle = "#ffffff";
-    } else if (isActive) {
-      g.fillStyle = "#e0f2fe";
-    } else {
-      g.fillStyle = "rgba(224, 238, 255, 0.88)";
+    const box = {
+      minX: x - halfW,
+      maxX: x + halfW,
+      minY: y - halfH,
+      maxY: y + halfH,
+    };
+
+    // Guarantee labels never overlap
+    if (!isSelected && this.boxCollides(box, placedBoxes, W)) {
+      return null;
     }
-    g.fillText(name, 0, 0);
-    g.restore();
+
+    this.renderTextAt(g, name, x, y, angle, actualFontSize, isSelected, isActive);
+
+    if (x < 300) {
+      this.renderTextAt(g, name, x + W, y, angle, actualFontSize, isSelected, isActive);
+    } else if (x > W - 300) {
+      this.renderTextAt(g, name, x - W, y, angle, actualFontSize, isSelected, isActive);
+    }
+
+    return box;
   }
 
-  private drawCountryCallout(
+  private tryDrawCountryCallout(
     g: CanvasRenderingContext2D,
     name: string,
     x: number,
     y: number,
     label: CountryLabel,
     isSelected: boolean,
+    isActive: boolean,
+    placedBoxes: { minX: number; minY: number; maxX: number; maxY: number }[]
+  ): { minX: number; minY: number; maxX: number; maxY: number } | null {
+    const W = this.fillCv.width;
+    const fSize = 13;
+    g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${fSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    const textW = g.measureText(name).width;
+    const textH = fSize + 6;
+
+    // Test multiple directions & distances around the country to find a collision-free open space
+    const baseAng = Math.atan2(-label.calloutDy, label.calloutDx);
+    const candidateAngles = [
+      baseAng,
+      baseAng + Math.PI * 0.35,
+      baseAng - Math.PI * 0.35,
+      baseAng + Math.PI * 0.7,
+      baseAng - Math.PI * 0.7,
+      baseAng + Math.PI,
+      Math.PI * 0.75, // SW
+      -Math.PI * 0.25, // NE
+      -Math.PI * 0.75, // NW
+      Math.PI * 0.25, // SE
+    ];
+    const candidateDists = [42, 68, 96, 128];
+
+    let bestChoice: {
+      targetX: number;
+      targetY: number;
+      tickLen: number;
+      textX: number;
+      textY: number;
+      box: { minX: number; minY: number; maxX: number; maxY: number };
+      isLeft: boolean;
+    } | null = null;
+
+    for (const dist of candidateDists) {
+      if (bestChoice) break;
+      for (const ang of candidateAngles) {
+        const dxPx = Math.cos(ang) * dist;
+        const dyPx = Math.sin(ang) * dist;
+        const targetX = x + dxPx;
+        const targetY = y + dyPx;
+        const isLeft = dxPx < 0;
+        const tickLen = isLeft ? -14 : 14;
+        const textX = targetX + tickLen + (isLeft ? -4 : 4);
+        const textY = targetY;
+
+        const box = {
+          minX: isLeft ? textX - textW - 4 : textX - 4,
+          maxX: isLeft ? textX + 4 : textX + textW + 4,
+          minY: textY - textH / 2 - 2,
+          maxY: textY + textH / 2 + 2,
+        };
+
+        if (!this.boxCollides(box, placedBoxes, W)) {
+          bestChoice = { targetX, targetY, tickLen, textX, textY, box, isLeft };
+          break;
+        }
+      }
+    }
+
+    if (!bestChoice) {
+      if (!isSelected) return null;
+      // If selected, fallback to primary direction
+      const dxPx = (label.calloutDx / 360) * W;
+      const dyPx = (-label.calloutDy / 180) * this.fillCv.height;
+      const targetX = x + dxPx;
+      const targetY = y + dyPx;
+      const isLeft = dxPx < 0;
+      const tickLen = isLeft ? -14 : 14;
+      const textX = targetX + tickLen + (isLeft ? -4 : 4);
+      const textY = targetY;
+      const box = {
+        minX: isLeft ? textX - textW - 4 : textX - 4,
+        maxX: isLeft ? textX + 4 : textX + textW + 4,
+        minY: textY - textH / 2 - 2,
+        maxY: textY + textH / 2 + 2,
+      };
+      bestChoice = { targetX, targetY, tickLen, textX, textY, box, isLeft };
+    }
+
+    this.renderCalloutAt(g, name, x, y, bestChoice, isSelected, isActive);
+
+    if (x < 300) {
+      this.renderCalloutAt(
+        g,
+        name,
+        x + W,
+        y,
+        {
+          ...bestChoice,
+          targetX: bestChoice.targetX + W,
+          textX: bestChoice.textX + W,
+        },
+        isSelected,
+        isActive
+      );
+    } else if (x > W - 300) {
+      this.renderCalloutAt(
+        g,
+        name,
+        x - W,
+        y,
+        {
+          ...bestChoice,
+          targetX: bestChoice.targetX - W,
+          textX: bestChoice.textX - W,
+        },
+        isSelected,
+        isActive
+      );
+    }
+
+    return bestChoice.box;
+  }
+
+  private renderTextAt(
+    g: CanvasRenderingContext2D,
+    name: string,
+    x: number,
+    y: number,
+    angle: number,
+    actualFontSize: number,
+    isSelected: boolean,
     isActive: boolean
   ) {
-    const W = this.fillCv.width,
-      H = this.fillCv.height;
-    const dxPx = (label.calloutDx / 360) * W;
-    const dyPx = (-label.calloutDy / 180) * H;
-    const targetX = x + dxPx;
-    const targetY = y + dyPx;
-    const isLeft = dxPx < 0;
-    const tickLen = isLeft ? -14 : 14;
+    g.save();
+    g.translate(x, y);
+    g.rotate(angle);
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${actualFontSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
 
+    g.strokeStyle = "rgba(4, 8, 16, 0.95)";
+    g.lineWidth = Math.max(3, actualFontSize * 0.22);
+    g.lineJoin = "round";
+    g.strokeText(name, 0, 0);
+
+    g.fillStyle = isSelected ? "#ffffff" : isActive ? "#e0f2fe" : "rgba(224, 238, 255, 0.88)";
+    g.fillText(name, 0, 0);
+    g.restore();
+  }
+
+  private renderCalloutAt(
+    g: CanvasRenderingContext2D,
+    name: string,
+    x: number,
+    y: number,
+    choice: {
+      targetX: number;
+      targetY: number;
+      tickLen: number;
+      textX: number;
+      textY: number;
+      isLeft: boolean;
+    },
+    isSelected: boolean,
+    isActive: boolean
+  ) {
     // White dot at country center
     g.beginPath();
     g.arc(x, y, 2.2, 0, Math.PI * 2);
     g.fillStyle = "rgba(255, 255, 255, 0.95)";
     g.fill();
 
-    // Clean leader line to open space
+    // Clean white leader line to open space
     g.beginPath();
     g.moveTo(x, y);
-    g.lineTo(targetX, targetY);
-    g.lineTo(targetX + tickLen, targetY);
-    g.strokeStyle = "rgba(255, 255, 255, 0.82)";
+    g.lineTo(choice.targetX, choice.targetY);
+    g.lineTo(choice.targetX + choice.tickLen, choice.targetY);
+    g.strokeStyle = "rgba(255, 255, 255, 0.85)";
     g.lineWidth = 1.3;
     g.lineCap = "round";
     g.lineJoin = "round";
     g.stroke();
 
     // Country name at end of leader line
-    const textX = targetX + tickLen + (isLeft ? -4 : 4);
-    const textY = targetY;
     g.save();
-    g.textAlign = isLeft ? "right" : "left";
+    g.textAlign = choice.isLeft ? "right" : "left";
     g.textBaseline = "middle";
     const fSize = 13;
     g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${fSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
 
     g.strokeStyle = "rgba(4, 8, 16, 0.95)";
     g.lineWidth = 3.5;
-    g.strokeText(name, textX, textY);
+    g.strokeText(name, choice.textX, choice.textY);
 
     g.fillStyle = isSelected ? "#ffffff" : isActive ? "#e0f2fe" : "rgba(235, 245, 255, 0.92)";
-    g.fillText(name, textX, textY);
+    g.fillText(name, choice.textX, choice.textY);
     g.restore();
   }
 
