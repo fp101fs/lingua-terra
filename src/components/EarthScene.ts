@@ -282,19 +282,19 @@ export class EarthScene {
         const x = ((c.label.cx + 180) / 360) * W;
         const y = ((90 - c.label.cy) / 180) * H;
 
-        if (c.label.useCallout) {
-          const item = this.tryDrawCountryCallout(g, c.meta.name, x, y, c.label, isSelected, isActive, placedItems);
-          if (item) placedItems.push(item);
-        } else {
-          const item = this.tryDrawCountryLabel(g, c.meta.name, x, y, c.label.angle, c.label.fontSize, c.label.maxLen, isSelected, isActive, placedItems);
-          if (item) {
-            placedItems.push(item);
-          } else {
-            // If internal label cannot fit without collision, fall back to callout leader line
-            const calloutItem = this.tryDrawCountryCallout(g, c.meta.name, x, y, c.label, isSelected, isActive, placedItems);
-            if (calloutItem) placedItems.push(calloutItem);
-          }
-        }
+        const item = this.tryDrawCountryLabel(
+          g,
+          c.meta.name,
+          x,
+          y,
+          c.label.angle,
+          c.label.fontSize,
+          c.label.maxLen,
+          isSelected,
+          isActive,
+          placedItems
+        );
+        if (item) placedItems.push(item);
       }
     }
 
@@ -411,24 +411,25 @@ export class EarthScene {
   ): { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } } | null {
     const W = this.fillCv.width;
 
-    // Guarantee text never exceeds internal country border
-    let actualFontSize = fontSize;
-    g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${actualFontSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    // Proportionally reduce font size down until text fits within country border
+    let fitFontSize = fontSize;
+    g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${fitFontSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
     let measuredWidth = g.measureText(name).width;
-    if (measuredWidth > maxLen && maxLen > 15) {
-      actualFontSize = Math.max(9, Math.floor(actualFontSize * (maxLen / measuredWidth)));
-      g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${actualFontSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    if (measuredWidth > maxLen && maxLen > 10) {
+      fitFontSize = Math.max(7, Math.floor(fitFontSize * (maxLen / measuredWidth)));
+      g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${fitFontSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
       measuredWidth = g.measureText(name).width;
     }
 
-    // Try primary size, then 85% font size if needed
-    const fontSizesToTry = [actualFontSize];
-    if (!isSelected && actualFontSize > 11) {
-      fontSizesToTry.push(Math.max(10, Math.floor(actualFontSize * 0.85)));
+    // Try starting from fitFontSize down to 7px to find collision-free space
+    const fontSizesToTry: number[] = [];
+    for (let f = fitFontSize; f >= 7; f -= 2) {
+      fontSizesToTry.push(f);
     }
+    if (!fontSizesToTry.includes(7)) fontSizesToTry.push(7);
 
     // Micro-adjustments along principal axis
-    const shifts = [0, 8, -8, 16, -16];
+    const shifts = [0, 6, -6, 12, -12, 18, -18];
     const cosA = Math.cos(angle);
     const sinA = Math.sin(angle);
 
@@ -442,8 +443,8 @@ export class EarthScene {
     for (const fs of fontSizesToTry) {
       if (chosenCandidate) break;
       g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${fs}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-      const curW = g.measureText(name).width + 4;
-      const curH = fs + 4;
+      const curW = g.measureText(name).width + 3;
+      const curH = fs + 3;
 
       for (const s of shifts) {
         const cx = x + s * cosA;
@@ -460,7 +461,18 @@ export class EarthScene {
     }
 
     if (!chosenCandidate) {
-      return null;
+      // If selected or active language, place at minimum font size even under tight constraints
+      if (isSelected || isActive) {
+        const fs = Math.max(7, Math.min(10, fitFontSize));
+        g.font = `${isSelected ? 800 : 700} ${fs}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+        const curW = g.measureText(name).width + 3;
+        const curH = fs + 3;
+        const corners = this.getRotatedBoxCorners(x, y, curW, curH, angle);
+        const aabb = this.computeAABB(corners);
+        chosenCandidate = { renderX: x, renderY: y, fontSize: fs, item: { corners, aabb } };
+      } else {
+        return null;
+      }
     }
 
     this.renderTextAt(g, name, chosenCandidate.renderX, chosenCandidate.renderY, angle, chosenCandidate.fontSize, isSelected, isActive);
@@ -472,124 +484,6 @@ export class EarthScene {
     }
 
     return chosenCandidate.item;
-  }
-
-  private tryDrawCountryCallout(
-    g: CanvasRenderingContext2D,
-    name: string,
-    x: number,
-    y: number,
-    label: CountryLabel,
-    isSelected: boolean,
-    isActive: boolean,
-    placedItems: { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } }[]
-  ): { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } } | null {
-    const W = this.fillCv.width;
-    const fSize = 13;
-    g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${fSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-    const textW = g.measureText(name).width;
-    const textH = fSize + 6;
-
-    // Test multiple directions & distances around the country to find a collision-free open space
-    const baseAng = Math.atan2(-label.calloutDy, label.calloutDx);
-    const candidateAngles = [
-      baseAng,
-      baseAng + Math.PI * 0.35,
-      baseAng - Math.PI * 0.35,
-      baseAng + Math.PI * 0.7,
-      baseAng - Math.PI * 0.7,
-      baseAng + Math.PI,
-      Math.PI * 0.75, // SW
-      -Math.PI * 0.25, // NE
-      -Math.PI * 0.75, // NW
-      Math.PI * 0.25, // SE
-    ];
-    const candidateDists = [42, 68, 96, 128];
-
-    let bestChoice: {
-      targetX: number;
-      targetY: number;
-      tickLen: number;
-      textX: number;
-      textY: number;
-      item: { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } };
-      isLeft: boolean;
-    } | null = null;
-
-    for (const dist of candidateDists) {
-      if (bestChoice) break;
-      for (const ang of candidateAngles) {
-        const dxPx = Math.cos(ang) * dist;
-        const dyPx = Math.sin(ang) * dist;
-        const targetX = x + dxPx;
-        const targetY = y + dyPx;
-        const isLeft = dxPx < 0;
-        const tickLen = isLeft ? -14 : 14;
-        const textX = targetX + tickLen + (isLeft ? -4 : 4);
-        const textY = targetY;
-        const textMidX = isLeft ? textX - textW / 2 : textX + textW / 2;
-
-        const corners = this.getRotatedBoxCorners(textMidX, textY, textW + 4, textH + 4, 0);
-        const aabb = this.computeAABB(corners);
-        const item = { corners, aabb };
-
-        if (!this.itemCollides(item, placedItems, W)) {
-          bestChoice = { targetX, targetY, tickLen, textX, textY, item, isLeft };
-          break;
-        }
-      }
-    }
-
-    if (!bestChoice) {
-      if (!isSelected) return null;
-      // If selected, fallback to primary direction
-      const dxPx = (label.calloutDx / 360) * W;
-      const dyPx = (-label.calloutDy / 180) * this.fillCv.height;
-      const targetX = x + dxPx;
-      const targetY = y + dyPx;
-      const isLeft = dxPx < 0;
-      const tickLen = isLeft ? -14 : 14;
-      const textX = targetX + tickLen + (isLeft ? -4 : 4);
-      const textY = targetY;
-      const textMidX = isLeft ? textX - textW / 2 : textX + textW / 2;
-      const corners = this.getRotatedBoxCorners(textMidX, textY, textW + 4, textH + 4, 0);
-      const aabb = this.computeAABB(corners);
-      bestChoice = { targetX, targetY, tickLen, textX, textY, item: { corners, aabb }, isLeft };
-    }
-
-    this.renderCalloutAt(g, name, x, y, bestChoice, isSelected, isActive);
-
-    if (x < 300) {
-      this.renderCalloutAt(
-        g,
-        name,
-        x + W,
-        y,
-        {
-          ...bestChoice,
-          targetX: bestChoice.targetX + W,
-          textX: bestChoice.textX + W,
-        },
-        isSelected,
-        isActive
-      );
-    } else if (x > W - 300) {
-      this.renderCalloutAt(
-        g,
-        name,
-        x - W,
-        y,
-        {
-          ...bestChoice,
-          targetX: bestChoice.targetX - W,
-          textX: bestChoice.textX - W,
-        },
-        isSelected,
-        isActive
-      );
-    }
-
-    return bestChoice.item;
   }
 
   private renderTextAt(
@@ -610,61 +504,12 @@ export class EarthScene {
     g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${actualFontSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
 
     g.strokeStyle = "rgba(4, 8, 16, 0.95)";
-    g.lineWidth = Math.max(3, actualFontSize * 0.22);
+    g.lineWidth = Math.max(2.5, actualFontSize * 0.22);
     g.lineJoin = "round";
     g.strokeText(name, 0, 0);
 
     g.fillStyle = isSelected ? "#ffffff" : isActive ? "#e0f2fe" : "rgba(224, 238, 255, 0.88)";
     g.fillText(name, 0, 0);
-    g.restore();
-  }
-
-  private renderCalloutAt(
-    g: CanvasRenderingContext2D,
-    name: string,
-    x: number,
-    y: number,
-    choice: {
-      targetX: number;
-      targetY: number;
-      tickLen: number;
-      textX: number;
-      textY: number;
-      isLeft: boolean;
-    },
-    isSelected: boolean,
-    isActive: boolean
-  ) {
-    // White dot at country center
-    g.beginPath();
-    g.arc(x, y, 2.2, 0, Math.PI * 2);
-    g.fillStyle = "rgba(255, 255, 255, 0.95)";
-    g.fill();
-
-    // Clean white leader line to open space
-    g.beginPath();
-    g.moveTo(x, y);
-    g.lineTo(choice.targetX, choice.targetY);
-    g.lineTo(choice.targetX + choice.tickLen, choice.targetY);
-    g.strokeStyle = "rgba(255, 255, 255, 0.85)";
-    g.lineWidth = 1.3;
-    g.lineCap = "round";
-    g.lineJoin = "round";
-    g.stroke();
-
-    // Country name at end of leader line
-    g.save();
-    g.textAlign = choice.isLeft ? "right" : "left";
-    g.textBaseline = "middle";
-    const fSize = 13;
-    g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${fSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-
-    g.strokeStyle = "rgba(4, 8, 16, 0.95)";
-    g.lineWidth = 3.5;
-    g.strokeText(name, choice.textX, choice.textY);
-
-    g.fillStyle = isSelected ? "#ffffff" : isActive ? "#e0f2fe" : "rgba(235, 245, 255, 0.92)";
-    g.fillText(name, choice.textX, choice.textY);
     g.restore();
   }
 

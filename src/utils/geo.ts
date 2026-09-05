@@ -201,28 +201,29 @@ export function computeWidestLabel(
     if (v > maxV) maxV = v;
   }
 
-  // Available pixel space inside the country border (with 25% safety margin)
-  const pxLen = (maxU - minU) * 11.38 * 0.75;
-  const pxHei = (maxV - minV) * 11.38 * 0.75;
-  const maxFontByLen = Math.floor(pxLen / Math.max(1, name.length * 0.65));
-  const maxFontByHei = Math.floor(pxHei * 0.85);
+  // Available pixel space inside the country border (with 20% safety margin)
+  const pxLen = (maxU - minU) * 11.38 * 0.8;
+  const pxHei = (maxV - minV) * 11.38 * 0.8;
+  const maxFontByLen = Math.floor(pxLen / Math.max(1, name.length * 0.60));
+  const maxFontByHei = Math.floor(pxHei * 0.82);
   const fitFont = Math.min(maxFontByLen, maxFontByHei);
+  const targetFont = Math.round(13 + span * 1.1);
 
-  // Small countries (e.g. Panama, Belize, Luxembourg, Fiji) cannot fit readable text inside borders
-  const useCallout = fitFont < 13 || pxHei < 14 || pxLen < 32;
+  // Reduce font size proportionally down to minimum readable font (8px) so text fits inside border
+  const fontSize = clamp(Math.min(targetFont, fitFont), 8, 28);
+  const maxLen = Math.max(16, pxLen);
 
-  let calloutDx = cx > 0 ? 3.0 : -3.5;
-  let calloutDy = cy > 0 ? -2.2 : 2.2;
-  // Specific tuning for Central America / Caribbean
-  if (cx < -65 && cx > -95 && cy > 6 && cy < 22) {
-    calloutDx = -3.8;
-    calloutDy = 2.4;
-  }
-
-  const fontSize = useCallout ? 13 : clamp(Math.min(fitFont, Math.round(13 + span * 1.1)), 13, 28);
-  const maxLen = useCallout ? 300 : pxLen;
-
-  return { cx, cy, angle: canvasAngle, span, fontSize, maxLen, useCallout, calloutDx, calloutDy };
+  return {
+    cx,
+    cy,
+    angle: canvasAngle,
+    span,
+    fontSize,
+    maxLen,
+    useCallout: false,
+    calloutDx: 0,
+    calloutDy: 0,
+  };
 }
 
 export function decodeTopoCountries(topo: any): Map<string, number[][][]> {

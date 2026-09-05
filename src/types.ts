@@ -22,9 +22,6 @@ export interface CountryLabel {
   span: number; // visual scale / importance
   fontSize: number; // base font size in canvas px
   maxLen: number; // max available pixel length inside boundary
-  useCallout: boolean; // if true, draw white leader line to open area
-  calloutDx: number; // degrees offset for leader line
-  calloutDy: number;
 }
 
 export interface Country {
