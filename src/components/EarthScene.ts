@@ -248,7 +248,7 @@ export class EarthScene {
 
     // 3. Country Names / Labels (if enabled)
     if (layers.labels) {
-      const placedBoxes: { minX: number; minY: number; maxX: number; maxY: number }[] = [];
+      const placedItems: { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } }[] = [];
 
       // Sort countries: selected first, active languages second, then largest countries first
       const sorted = [...countries].sort((a, b) => {
@@ -283,11 +283,17 @@ export class EarthScene {
         const y = ((90 - c.label.cy) / 180) * H;
 
         if (c.label.useCallout) {
-          const box = this.tryDrawCountryCallout(g, c.meta.name, x, y, c.label, isSelected, isActive, placedBoxes);
-          if (box) placedBoxes.push(box);
+          const item = this.tryDrawCountryCallout(g, c.meta.name, x, y, c.label, isSelected, isActive, placedItems);
+          if (item) placedItems.push(item);
         } else {
-          const box = this.tryDrawCountryLabel(g, c.meta.name, x, y, c.label.angle, c.label.fontSize, c.label.maxLen, isSelected, isActive, placedBoxes);
-          if (box) placedBoxes.push(box);
+          const item = this.tryDrawCountryLabel(g, c.meta.name, x, y, c.label.angle, c.label.fontSize, c.label.maxLen, isSelected, isActive, placedItems);
+          if (item) {
+            placedItems.push(item);
+          } else {
+            // If internal label cannot fit without collision, fall back to callout leader line
+            const calloutItem = this.tryDrawCountryCallout(g, c.meta.name, x, y, c.label, isSelected, isActive, placedItems);
+            if (calloutItem) placedItems.push(calloutItem);
+          }
         }
       }
     }
@@ -296,24 +302,96 @@ export class EarthScene {
     this.overlayDirty = false;
   }
 
-  private boxCollides(
-    box: { minX: number; minY: number; maxX: number; maxY: number },
-    placed: { minX: number; minY: number; maxX: number; maxY: number }[],
+  private getRotatedBoxCorners(cx: number, cy: number, w: number, h: number, angle: number): { x: number; y: number }[] {
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const hw = w / 2;
+    const hh = h / 2;
+    return [
+      { x: cx + (-hw * cos - -hh * sin), y: cy + (-hw * sin + -hh * cos) },
+      { x: cx + (hw * cos - -hh * sin), y: cy + (hw * sin + -hh * cos) },
+      { x: cx + (hw * cos - hh * sin), y: cy + (hw * sin + hh * cos) },
+      { x: cx + (-hw * cos - hh * sin), y: cy + (-hw * sin + hh * cos) },
+    ];
+  }
+
+  private computeAABB(corners: { x: number; y: number }[]): { minX: number; minY: number; maxX: number; maxY: number } {
+    let minX = Infinity,
+      maxX = -Infinity,
+      minY = Infinity,
+      maxY = -Infinity;
+    for (const p of corners) {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    }
+    return { minX, maxX, minY, maxY };
+  }
+
+  private satOverlap(polyA: { x: number; y: number }[], polyB: { x: number; y: number }[]): boolean {
+    const polys = [polyA, polyB];
+    for (let i = 0; i < polys.length; i++) {
+      const p = polys[i];
+      for (let j = 0; j < p.length; j++) {
+        const p1 = p[j];
+        const p2 = p[(j + 1) % p.length];
+        const nx = -(p2.y - p1.y);
+        const ny = p2.x - p1.x;
+
+        let minA = Infinity,
+          maxA = -Infinity;
+        for (const pt of polyA) {
+          const dot = pt.x * nx + pt.y * ny;
+          if (dot < minA) minA = dot;
+          if (dot > maxA) maxA = dot;
+        }
+
+        let minB = Infinity,
+          maxB = -Infinity;
+        for (const pt of polyB) {
+          const dot = pt.x * nx + pt.y * ny;
+          if (dot < minB) minB = dot;
+          if (dot > maxB) maxB = dot;
+        }
+
+        if (maxA <= minB || maxB <= minA) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  private itemCollides(
+    item: { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } },
+    placed: { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } }[],
     W: number
   ): boolean {
-    const pad = 3;
-    const bMinX = box.minX - pad,
-      bMaxX = box.maxX + pad;
-    const bMinY = box.minY - pad,
-      bMaxY = box.maxY + pad;
+    const wrapOffsets = [0];
+    if (item.aabb.minX < 400) wrapOffsets.push(W);
+    if (item.aabb.maxX > W - 400) wrapOffsets.push(-W);
 
-    for (const p of placed) {
-      if (!(bMaxX < p.minX || bMinX > p.maxX || bMaxY < p.minY || bMinY > p.maxY)) return true;
-      if (bMinX < 400) {
-        if (!(bMaxX + W < p.minX || bMinX + W > p.maxX || bMaxY < p.minY || bMinY > p.maxY)) return true;
-      }
-      if (bMaxX > W - 400) {
-        if (!(bMaxX - W < p.minX || bMinX - W > p.maxX || bMaxY < p.minY || bMinY > p.maxY)) return true;
+    for (const offset of wrapOffsets) {
+      const minX = item.aabb.minX + offset;
+      const maxX = item.aabb.maxX + offset;
+      const minY = item.aabb.minY;
+      const maxY = item.aabb.maxY;
+
+      const corners =
+        offset === 0
+          ? item.corners
+          : item.corners.map((p) => ({ x: p.x + offset, y: p.y }));
+
+      for (const p of placed) {
+        // Broad phase AABB check
+        if (maxX < p.aabb.minX || minX > p.aabb.maxX || maxY < p.aabb.minY || minY > p.aabb.maxY) {
+          continue;
+        }
+        // Narrow phase Separating Axis Theorem (exact rotated box check)
+        if (this.satOverlap(corners, p.corners)) {
+          return true;
+        }
       }
     }
     return false;
@@ -329,8 +407,8 @@ export class EarthScene {
     maxLen: number,
     isSelected: boolean,
     isActive: boolean,
-    placedBoxes: { minX: number; minY: number; maxX: number; maxY: number }[]
-  ): { minX: number; minY: number; maxX: number; maxY: number } | null {
+    placedItems: { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } }[]
+  ): { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } } | null {
     const W = this.fillCv.width;
 
     // Guarantee text never exceeds internal country border
@@ -343,33 +421,57 @@ export class EarthScene {
       measuredWidth = g.measureText(name).width;
     }
 
-    const textH = actualFontSize + 4;
-    const cos = Math.abs(Math.cos(angle));
-    const sin = Math.abs(Math.sin(angle));
-    const halfW = (measuredWidth * cos + textH * sin) / 2 + 4;
-    const halfH = (measuredWidth * sin + textH * cos) / 2 + 4;
+    // Try primary size, then 85% font size if needed
+    const fontSizesToTry = [actualFontSize];
+    if (!isSelected && actualFontSize > 11) {
+      fontSizesToTry.push(Math.max(10, Math.floor(actualFontSize * 0.85)));
+    }
 
-    const box = {
-      minX: x - halfW,
-      maxX: x + halfW,
-      minY: y - halfH,
-      maxY: y + halfH,
-    };
+    // Micro-adjustments along principal axis
+    const shifts = [0, 8, -8, 16, -16];
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
 
-    // Guarantee labels never overlap
-    if (!isSelected && this.boxCollides(box, placedBoxes, W)) {
+    let chosenCandidate: {
+      renderX: number;
+      renderY: number;
+      fontSize: number;
+      item: { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } };
+    } | null = null;
+
+    for (const fs of fontSizesToTry) {
+      if (chosenCandidate) break;
+      g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${fs}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+      const curW = g.measureText(name).width + 4;
+      const curH = fs + 4;
+
+      for (const s of shifts) {
+        const cx = x + s * cosA;
+        const cy = y + s * sinA;
+        const corners = this.getRotatedBoxCorners(cx, cy, curW, curH, angle);
+        const aabb = this.computeAABB(corners);
+        const item = { corners, aabb };
+
+        if (isSelected || !this.itemCollides(item, placedItems, W)) {
+          chosenCandidate = { renderX: cx, renderY: cy, fontSize: fs, item };
+          break;
+        }
+      }
+    }
+
+    if (!chosenCandidate) {
       return null;
     }
 
-    this.renderTextAt(g, name, x, y, angle, actualFontSize, isSelected, isActive);
+    this.renderTextAt(g, name, chosenCandidate.renderX, chosenCandidate.renderY, angle, chosenCandidate.fontSize, isSelected, isActive);
 
-    if (x < 300) {
-      this.renderTextAt(g, name, x + W, y, angle, actualFontSize, isSelected, isActive);
-    } else if (x > W - 300) {
-      this.renderTextAt(g, name, x - W, y, angle, actualFontSize, isSelected, isActive);
+    if (chosenCandidate.renderX < 300) {
+      this.renderTextAt(g, name, chosenCandidate.renderX + W, chosenCandidate.renderY, angle, chosenCandidate.fontSize, isSelected, isActive);
+    } else if (chosenCandidate.renderX > W - 300) {
+      this.renderTextAt(g, name, chosenCandidate.renderX - W, chosenCandidate.renderY, angle, chosenCandidate.fontSize, isSelected, isActive);
     }
 
-    return box;
+    return chosenCandidate.item;
   }
 
   private tryDrawCountryCallout(
@@ -380,8 +482,8 @@ export class EarthScene {
     label: CountryLabel,
     isSelected: boolean,
     isActive: boolean,
-    placedBoxes: { minX: number; minY: number; maxX: number; maxY: number }[]
-  ): { minX: number; minY: number; maxX: number; maxY: number } | null {
+    placedItems: { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } }[]
+  ): { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } } | null {
     const W = this.fillCv.width;
     const fSize = 13;
     g.font = `${isSelected ? 800 : isActive ? 700 : 600} ${fSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
@@ -410,7 +512,7 @@ export class EarthScene {
       tickLen: number;
       textX: number;
       textY: number;
-      box: { minX: number; minY: number; maxX: number; maxY: number };
+      item: { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } };
       isLeft: boolean;
     } | null = null;
 
@@ -425,16 +527,14 @@ export class EarthScene {
         const tickLen = isLeft ? -14 : 14;
         const textX = targetX + tickLen + (isLeft ? -4 : 4);
         const textY = targetY;
+        const textMidX = isLeft ? textX - textW / 2 : textX + textW / 2;
 
-        const box = {
-          minX: isLeft ? textX - textW - 4 : textX - 4,
-          maxX: isLeft ? textX + 4 : textX + textW + 4,
-          minY: textY - textH / 2 - 2,
-          maxY: textY + textH / 2 + 2,
-        };
+        const corners = this.getRotatedBoxCorners(textMidX, textY, textW + 4, textH + 4, 0);
+        const aabb = this.computeAABB(corners);
+        const item = { corners, aabb };
 
-        if (!this.boxCollides(box, placedBoxes, W)) {
-          bestChoice = { targetX, targetY, tickLen, textX, textY, box, isLeft };
+        if (!this.itemCollides(item, placedItems, W)) {
+          bestChoice = { targetX, targetY, tickLen, textX, textY, item, isLeft };
           break;
         }
       }
@@ -451,13 +551,10 @@ export class EarthScene {
       const tickLen = isLeft ? -14 : 14;
       const textX = targetX + tickLen + (isLeft ? -4 : 4);
       const textY = targetY;
-      const box = {
-        minX: isLeft ? textX - textW - 4 : textX - 4,
-        maxX: isLeft ? textX + 4 : textX + textW + 4,
-        minY: textY - textH / 2 - 2,
-        maxY: textY + textH / 2 + 2,
-      };
-      bestChoice = { targetX, targetY, tickLen, textX, textY, box, isLeft };
+      const textMidX = isLeft ? textX - textW / 2 : textX + textW / 2;
+      const corners = this.getRotatedBoxCorners(textMidX, textY, textW + 4, textH + 4, 0);
+      const aabb = this.computeAABB(corners);
+      bestChoice = { targetX, targetY, tickLen, textX, textY, item: { corners, aabb }, isLeft };
     }
 
     this.renderCalloutAt(g, name, x, y, bestChoice, isSelected, isActive);
@@ -492,7 +589,7 @@ export class EarthScene {
       );
     }
 
-    return bestChoice.box;
+    return bestChoice.item;
   }
 
   private renderTextAt(
