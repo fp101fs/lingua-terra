@@ -55,6 +55,26 @@ export function deterministicColor(a2: string): [number, number, number] {
   ];
 }
 
+export const LANG_COLORS: Record<string, [number, number, number]> = {
+  en: [210 / 360, 0.75, 0.52], // Deep Sky Blue (UK, US, Canada, Australia, etc.)
+  es: [35 / 360, 0.82, 0.52],  // Amber / Warm Orange (Spain, Mexico, Argentina, etc.)
+  fr: [280 / 360, 0.72, 0.54], // Purple / Violet (France, Senegal, DRC, etc.)
+  zh: [0 / 360, 0.78, 0.52],   // Crimson Red (China, Singapore)
+  ar: [145 / 360, 0.72, 0.48], // Emerald Green (Egypt, Saudi Arabia, etc.)
+  pt: [175 / 360, 0.74, 0.48], // Teal (Brazil, Portugal, Angola, Mozambique)
+  ru: [345 / 360, 0.75, 0.52], // Rose / Magenta (Russia, Belarus, Kazakhstan)
+  de: [48 / 360, 0.84, 0.50],  // Gold / Yellow (Germany, Austria, Switzerland)
+  hi: [22 / 360, 0.85, 0.53],  // Saffron (India, Fiji)
+  it: [310 / 360, 0.72, 0.52], // Orchid (Italy)
+  ko: [240 / 360, 0.76, 0.54], // Indigo (Korea)
+  th: [190 / 360, 0.78, 0.50], // Cyan (Thailand)
+};
+
+export function langColor(langId: string | null): [number, number, number] {
+  if (langId && LANG_COLORS[langId]) return LANG_COLORS[langId];
+  return [0.6, 0.65, 0.5];
+}
+
 export function splitAntimeridian(ring: [number, number][]): [number, number][][] {
   if (ring.length < 3) return [ring];
   let crosses = false;
@@ -77,17 +97,25 @@ export function splitAntimeridian(ring: [number, number][]): [number, number][][
         lon1 = p1[0];
       const lat0 = p0[1],
         lat1 = p1[1];
+      // If both points are already on the antimeridian (e.g. [180, y] to [-180, y]), avoid 0-division
+      if (Math.abs(Math.abs(lon0) - 180) < 1e-4 && Math.abs(Math.abs(lon1) - 180) < 1e-4) {
+        if (currentSeg.length) segments.push(currentSeg);
+        currentSeg = [p1];
+        continue;
+      }
       let t: number, latEdge: number;
       if (lon0 > 0) {
         // Crossing +180 towards -180
-        t = (180 - lon0) / (lon1 + 360 - lon0);
+        const denom = lon1 + 360 - lon0;
+        t = Math.abs(denom) < 1e-6 ? 0.5 : (180 - lon0) / denom;
         latEdge = lat0 + t * (lat1 - lat0);
         currentSeg.push([180, latEdge]);
         segments.push(currentSeg);
         currentSeg = [[-180, latEdge]];
       } else {
         // Crossing -180 towards +180
-        t = (-180 - lon0) / (lon1 - 360 - lon0);
+        const denom = lon1 - 360 - lon0;
+        t = Math.abs(denom) < 1e-6 ? 0.5 : (-180 - lon0) / denom;
         latEdge = lat0 + t * (lat1 - lat0);
         currentSeg.push([-180, latEdge]);
         segments.push(currentSeg);
@@ -102,21 +130,20 @@ export function splitAntimeridian(ring: [number, number][]): [number, number][][
   return segments;
 }
 
-export function computeWidestLabel(
-  polys: number[][][],
-  name: string
-): {
+export type CountryLabel = {
   cx: number;
   cy: number;
   angle: number;
   span: number;
   fontSize: number;
   maxLen: number;
-  useCallout: boolean;
-  calloutDx: number;
-  calloutDy: number;
-} {
-  if (!polys.length) {
+};
+
+export function computeWidestLabel(
+  polys: [number, number][][],
+  name: string
+): CountryLabel {
+  if (!polys.length || !polys[0].length) {
     return {
       cx: 0,
       cy: 0,
@@ -124,9 +151,6 @@ export function computeWidestLabel(
       span: 5,
       fontSize: 18,
       maxLen: 100,
-      useCallout: false,
-      calloutDx: 3,
-      calloutDy: -2,
     };
   }
 
@@ -201,28 +225,74 @@ export function computeWidestLabel(
     if (v > maxV) maxV = v;
   }
 
-  // Available pixel space inside the country border (with 20% safety margin)
-  const pxLen = (maxU - minU) * 11.38 * 0.8;
-  const pxHei = (maxV - minV) * 11.38 * 0.8;
-  const maxFontByLen = Math.floor(pxLen / Math.max(1, name.length * 0.60));
-  const maxFontByHei = Math.floor(pxHei * 0.82);
-  const fitFont = Math.min(maxFontByLen, maxFontByHei);
-  const targetFont = Math.round(13 + span * 1.1);
+  // Also test extents at horizontal angle (0 degrees)
+  let minX0 = Infinity,
+    maxX0 = -Infinity,
+    minY0 = Infinity,
+    maxY0 = -Infinity;
+  for (const [x, y] of bestPoly) {
+    const dx = (x - cx) * cosLat;
+    const dy = y - cy;
+    if (dx < minX0) minX0 = dx;
+    if (dx > maxX0) maxX0 = dx;
+    if (dy < minY0) minY0 = dy;
+    if (dy > maxY0) maxY0 = dy;
+  }
 
-  // Reduce font size proportionally down to minimum readable font (8px) so text fits inside border
+  const uLenPCA = maxU - minU;
+  const vLenPCA = maxV - minV;
+  const uLen0 = maxX0 - minX0;
+  const vLen0 = maxY0 - minY0;
+  const ratioPCA = uLenPCA / Math.max(0.01, vLenPCA);
+
+  // Available pixel space at PCA vs horizontal (0°)
+  const pxLen0 = uLen0 * 11.38 * 0.8;
+  const pxHei0 = vLen0 * 11.38 * 0.8;
+  const maxFont0 = Math.min(
+    Math.floor(pxLen0 / Math.max(1, name.length * 0.60)),
+    Math.floor(pxHei0 * 0.82)
+  );
+
+  const pxLenPCA = uLenPCA * 11.38 * 0.8;
+  const pxHeiPCA = vLenPCA * 11.38 * 0.8;
+  const maxFontPCA = Math.min(
+    Math.floor(pxLenPCA / Math.max(1, name.length * 0.60)),
+    Math.floor(pxHeiPCA * 0.82)
+  );
+
+  // For countries whose names fit well within the borders at horizontal (e.g. Brazil, France, India, US, China),
+  // or compact/equidimensional countries, display at an even horizontal angle (0°)
+  let finalAngle = canvasAngle;
+  let pxLen = pxLenPCA;
+  let fitFont = maxFontPCA;
+
+  if (Math.abs(canvasAngle) < 0.18) {
+    finalAngle = 0;
+    pxLen = pxLen0;
+    fitFont = maxFont0;
+  } else if (ratioPCA < 1.45 && maxFont0 >= 10) {
+    // Equidimensional or compact country (e.g. Brazil, France, India)
+    finalAngle = 0;
+    pxLen = pxLen0;
+    fitFont = maxFont0;
+  } else if (ratioPCA < 2.0 && maxFont0 >= 18 && maxFont0 >= maxFontPCA * 0.80) {
+    // Large country where horizontal text fits comfortably
+    finalAngle = 0;
+    pxLen = pxLen0;
+    fitFont = maxFont0;
+  }
+
+  const targetFont = Math.round(13 + span * 1.1);
   const fontSize = clamp(Math.min(targetFont, fitFont), 8, 28);
   const maxLen = Math.max(16, pxLen);
 
   return {
     cx,
     cy,
-    angle: canvasAngle,
+    angle: finalAngle,
     span,
     fontSize,
     maxLen,
-    useCallout: false,
-    calloutDx: 0,
-    calloutDy: 0,
   };
 }
 

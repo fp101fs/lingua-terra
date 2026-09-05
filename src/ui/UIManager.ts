@@ -10,6 +10,7 @@ export interface UIEvents {
   onCloseCard(): void;
   onCanvasClick(e: MouseEvent): void;
   onToggleLayer(layer: keyof LayerState): void;
+  onToggleColorByLang(): void;
 }
 
 export class UIManager {
@@ -55,6 +56,13 @@ export class UIManager {
               <button class="chip" id="btnAll">✦ Show all</button>
               <button class="chip" id="btnClear">Reset</button>
             </div>
+            <div id="dockLangColorRow" class="dock-color-toggle-wrap">
+              <button class="color-by-lang-btn on" id="btnColorByLang">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M4.93 19.07 19.07 4.93"/></svg>
+                <span>Color by Language</span>
+                <span class="toggle-dot"></span>
+              </button>
+            </div>
             <div class="langs" id="langs"></div>
           </div>
           <div id="tabContentCountries" class="tab-content">
@@ -94,6 +102,8 @@ export class UIManager {
       "loaderr",
       "btnAll",
       "btnClear",
+      "dockLangColorRow",
+      "btnColorByLang",
       "dockHead",
       "fps",
       "attrib",
@@ -148,7 +158,12 @@ export class UIManager {
     );
   }
 
-  updateDockState(mode: "none" | "lang" | "all", selectedLang: string | null, byCode: Map<string, Country>) {
+  updateDockState(
+    mode: "none" | "lang" | "all",
+    selectedLang: string | null,
+    byCode: Map<string, Country>,
+    colorByLang: boolean
+  ) {
     this.el.langs.querySelectorAll(".lang").forEach(b => {
       const id = (b as HTMLElement).dataset.id!;
       b.classList.toggle("active", mode === "lang" && selectedLang === id);
@@ -158,6 +173,18 @@ export class UIManager {
       }
     });
     this.el.btnAll.classList.toggle("on", mode === "all");
+
+    // "Color by Language" toggle appears below Show All / Reset when in Show All mode
+    if (this.el.dockLangColorRow) {
+      if (mode === "all") {
+        this.el.dockLangColorRow.classList.add("visible");
+      } else {
+        this.el.dockLangColorRow.classList.remove("visible");
+      }
+    }
+    if (this.el.btnColorByLang) {
+      this.el.btnColorByLang.classList.toggle("on", colorByLang);
+    }
   }
 
   showCountryCard(c: Country | null, mode: "none" | "lang" | "all", selectedLang: string | null) {
@@ -286,6 +313,8 @@ export class UIManager {
       this.el.tabContentCountries.classList.add("active");
       this.el.tabContentLangs.classList.remove("active");
     });
+
+    this.el.btnColorByLang?.addEventListener("click", () => events.onToggleColorByLang());
 
     this.el.dockLayers.querySelectorAll(".layer-btn").forEach(btn => {
       btn.addEventListener("click", () => {

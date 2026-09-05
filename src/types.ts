@@ -30,6 +30,7 @@ export interface Country {
   center: [number, number];
   angRad: number; // angular radius (radians) for framing
   color: [number, number, number]; // HSL 0-1
+  langColor?: [number, number, number]; // color by primary language
   langs: string[]; // language ids
   label?: CountryLabel;
 }

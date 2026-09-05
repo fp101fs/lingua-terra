@@ -2,7 +2,7 @@ import "./ui/styles.css";
 import type { Country, LayerState } from "./types";
 import { START, BORDERS_URL } from "./constants";
 import { NUM, LANGS, langName } from "./data/languages";
-import { deterministicColor, decodeTopoCountries, computeWidestLabel, geoToVec3, vecToGeo, wrapLon, clamp } from "./utils/geo";
+import { deterministicColor, langColor, decodeTopoCountries, computeWidestLabel, geoToVec3, vecToGeo, wrapLon, clamp } from "./utils/geo";
 import { GlobeControls } from "./components/GlobeControls";
 import { PinManager } from "./components/PinManager";
 import { EarthScene } from "./components/EarthScene";
@@ -13,6 +13,7 @@ class App {
   byCode = new Map<string, Country>();
   sel = { mode: "none" as "none" | "lang" | "all", lang: null as string | null };
   selCountry: Country | null = null;
+  colorByLang = false; // default false for non-showAll, true for showAll
   layers: LayerState = {
     borders: true,
     labels: true,
@@ -68,7 +69,8 @@ class App {
         this.activeCodes(),
         this.selCountry,
         this.layers,
-        this.earthScene.cam.position.length()
+        this.earthScene.cam.position.length(),
+        this.colorByLang
       );
       this.applySelection(); // Show All on startup
 
@@ -157,6 +159,15 @@ class App {
         if (c && !c.langs.includes(L.id)) c.langs.push(L.id);
       }
     }
+
+    // Assign primary language color for "Color by Language" mode
+    for (const c of this.byCode.values()) {
+      if (c.langs.length) {
+        c.langColor = langColor(c.langs[0]);
+      } else {
+        c.langColor = c.color;
+      }
+    }
   }
 
   activeCodes(): Set<string> {
@@ -171,8 +182,13 @@ class App {
   }
 
   selectLang(id: string | null) {
-    if (id === null) this.sel = { mode: "none", lang: null };
-    else this.sel = { mode: "lang", lang: id };
+    if (id === null) {
+      this.sel = { mode: "none", lang: null };
+      this.colorByLang = false; // off is default for non-showAll
+    } else {
+      this.sel = { mode: "lang", lang: id };
+      this.colorByLang = false; // off is default for non-showAll
+    }
     this.applySelection();
     if (id) {
       const L = langName(id);
@@ -183,13 +199,21 @@ class App {
 
   selectAll() {
     this.sel = { mode: "all", lang: null };
+    this.colorByLang = true; // on is default for Show All
     this.applySelection();
     this.controls.focusGeo(18, 15, 3.3, 1000);
   }
 
+  toggleColorByLang() {
+    this.colorByLang = !this.colorByLang;
+    this.earthScene.overlayDirty = true;
+    this.ui.updateDockState(this.sel.mode, this.sel.lang, this.byCode, this.colorByLang);
+    this.controls.kick();
+  }
+
   private applySelection() {
     this.earthScene.overlayDirty = true;
-    this.ui.updateDockState(this.sel.mode, this.sel.lang, this.byCode);
+    this.ui.updateDockState(this.sel.mode, this.sel.lang, this.byCode, this.colorByLang);
     if (this.selCountry && !this.activeCodes().has(this.selCountry.meta.a2)) {
       this.selectCountry(null, true);
     }
@@ -256,6 +280,7 @@ class App {
         this.selectCountry(code ? this.byCode.get(code)! : null);
       },
       onToggleLayer: layer => this.toggleLayer(layer),
+      onToggleColorByLang: () => this.toggleColorByLang(),
     });
   }
 
@@ -272,7 +297,8 @@ class App {
         this.activeCodes(),
         this.selCountry,
         this.layers,
-        camDist
+        camDist,
+        this.colorByLang
       );
     }
     this.earthScene.updateSunAndClouds();

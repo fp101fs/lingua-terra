@@ -89,22 +89,47 @@ export class GlobeControls {
     let x = 0,
       y = 0,
       z = 0;
+    let validPts = 0;
     for (const c of cs) {
       for (const poly of c.polys) {
         for (const [lo, la] of poly) {
+          if (isNaN(lo) || isNaN(la)) continue;
           const v = geoToVec3(la, lo, 1);
           x += v.x;
           y += v.y;
           z += v.z;
+          validPts++;
         }
       }
     }
-    const cen = new THREE.Vector3(x, y, z).normalize();
+    const len = Math.hypot(x, y, z);
+    // If scattered across globe or degenerate, fallback to capital-weighted center or start position
+    let cen: any;
+    if (len < 0.001 || validPts === 0) {
+      let wx = 0, wy = 0, wz = 0;
+      for (const c of cs) {
+        const w = Math.sqrt(Math.max(1, c.meta.pop));
+        const v = geoToVec3(c.meta.capLat, c.meta.capLon, 1);
+        wx += v.x * w;
+        wy += v.y * w;
+        wz += v.z * w;
+      }
+      const wlen = Math.hypot(wx, wy, wz);
+      if (wlen > 0.001) {
+        cen = new THREE.Vector3(wx / wlen, wy / wlen, wz / wlen);
+      } else {
+        cen = geoToVec3(22, 12, 1);
+      }
+    } else {
+      cen = new THREE.Vector3(x / len, y / len, z / len);
+    }
+
     const g = vecToGeo(cen);
     let maxA = 0.12;
     for (const c of cs) {
       const v = geoToVec3(c.center[1], c.center[0], 1);
-      const ang = Math.acos(clamp(v.dot(cen), -1, 1)) + c.angRad;
+      const dotVal = clamp(v.dot(cen), -1, 1);
+      const ang = Math.acos(dotVal) + (c.angRad || 0);
       if (ang > maxA) maxA = ang;
     }
     const d = clamp(

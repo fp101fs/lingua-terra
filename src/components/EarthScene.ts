@@ -205,7 +205,8 @@ export class EarthScene {
     active: Set<string>,
     selCountry: Country | null,
     layers: LayerState = { borders: true, labels: true, pins: true },
-    camDist = 3.0
+    camDist = 3.0,
+    colorByLang = false
   ) {
     const g = this.fillCtx,
       W = this.fillCv.width,
@@ -216,7 +217,8 @@ export class EarthScene {
     for (const c of countries) {
       if (!active.has(c.meta.a2)) continue;
       const em = selCountry === c;
-      g.fillStyle = cssHsl(c.color, em ? 0.46 : 0.32);
+      const col = colorByLang && c.langColor ? c.langColor : c.color;
+      g.fillStyle = cssHsl(col, em ? 0.48 : 0.34);
       g.beginPath();
       for (const p of c.polys) this.tracePoly(g, p, W, H);
       g.fill("evenodd");
@@ -238,7 +240,8 @@ export class EarthScene {
       for (const c of countries) {
         if (!active.has(c.meta.a2)) continue;
         const em = selCountry === c;
-        g.strokeStyle = cssHsl(c.color, em ? 1 : 0.95, 18);
+        const col = colorByLang && c.langColor ? c.langColor : c.color;
+        g.strokeStyle = cssHsl(col, em ? 1 : 0.95, 18);
         g.lineWidth = em ? 4.5 : 3.0;
         g.beginPath();
         for (const p of c.polys) this.tracePoly(g, p, W, H);

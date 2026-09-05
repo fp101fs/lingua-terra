@@ -343,6 +343,66 @@ body {
   color: #fff;
 }
 
+.dock-color-toggle-wrap {
+  display: none;
+  padding: 0 12px 8px;
+}
+
+.dock-color-toggle-wrap.visible {
+  display: flex;
+}
+
+.color-by-lang-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--dim);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.color-by-lang-btn svg {
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.color-by-lang-btn .toggle-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  transition: all 0.16s ease;
+}
+
+.color-by-lang-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+}
+
+.color-by-lang-btn.on {
+  background: rgba(61, 139, 253, 0.14);
+  border-color: rgba(111, 183, 255, 0.35);
+  color: #d8ebff;
+}
+
+.color-by-lang-btn.on svg {
+  opacity: 1;
+  stroke: #7ec0ff;
+}
+
+.color-by-lang-btn.on .toggle-dot {
+  background: #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
+}
+
 .langs {
   overflow-y: auto;
   padding: 2px 8px 10px;
