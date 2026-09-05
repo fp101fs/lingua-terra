@@ -148,7 +148,6 @@ export class EarthScene {
   }
 
   private tracePoly(g: CanvasRenderingContext2D, poly: number[][], W: number, H: number, shift: number) {
-    g.beginPath();
     for (let i = 0; i < poly.length; i++) {
       const x = ((poly[i][0] + shift + 180) / 360) * W,
         y = ((90 - poly[i][1]) / 180) * H;
@@ -157,7 +156,7 @@ export class EarthScene {
     g.closePath();
   }
 
-  private eachDraw(g: CanvasRenderingContext2D, c: Country, W: number, H: number, fn: (shift: number) => void) {
+  private eachDraw(c: Country, fn: (shift: number) => void) {
     fn(0);
     const touchesAntimeridian = c.polys.some(p => p.some(([lo]) => lo > 165 || lo < -165));
     if (touchesAntimeridian) {
@@ -182,10 +181,11 @@ export class EarthScene {
         gg = (i >> 8) & 255,
         b = (i >> 16) & 255;
       g.fillStyle = `rgb(${r},${gg},${b})`;
-      this.eachDraw(g, c, W, H, sh => {
+      this.eachDraw(c, sh => {
+        g.beginPath();
         for (const p of c.polys) this.tracePoly(g, p, W, H, sh);
+        g.fill("evenodd");
       });
-      g.fill("evenodd");
       i++;
     }
     this.pickData = g.getImageData(0, 0, W, H).data;
@@ -215,10 +215,11 @@ export class EarthScene {
       if (!active.has(c.meta.a2)) continue;
       const em = selCountry === c;
       g.fillStyle = cssHsl(c.color, em ? 0.46 : 0.32);
-      this.eachDraw(g, c, W, H, sh => {
+      this.eachDraw(c, sh => {
+        g.beginPath();
         for (const p of c.polys) this.tracePoly(g, p, W, H, sh);
+        g.fill("evenodd");
       });
-      g.fill("evenodd");
     }
 
     // Crisp borders — subtle global borders, bright active borders
@@ -227,10 +228,11 @@ export class EarthScene {
     g.strokeStyle = "rgba(255,255,255,0.28)";
     g.lineWidth = 1.6;
     for (const c of countries) {
-      this.eachDraw(g, c, W, H, sh => {
+      this.eachDraw(c, sh => {
+        g.beginPath();
         for (const p of c.polys) this.tracePoly(g, p, W, H, sh);
+        g.stroke();
       });
-      g.stroke();
     }
 
     for (const c of countries) {
@@ -238,10 +240,11 @@ export class EarthScene {
       const em = selCountry === c;
       g.strokeStyle = cssHsl(c.color, em ? 1 : 0.95, 18);
       g.lineWidth = em ? 4.5 : 3.0;
-      this.eachDraw(g, c, W, H, sh => {
+      this.eachDraw(c, sh => {
+        g.beginPath();
         for (const p of c.polys) this.tracePoly(g, p, W, H, sh);
+        g.stroke();
       });
-      g.stroke();
     }
 
     this.fillTex.needsUpdate = true;
