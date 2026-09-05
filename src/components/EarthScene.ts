@@ -23,7 +23,7 @@ export class EarthScene {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: true,
-      powerPreference: "high-performance",
+      alpha: false,
     });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
     this.renderer.setSize(innerWidth, innerHeight);
@@ -50,12 +50,14 @@ export class EarthScene {
         useNight: { value: 1.0 },
       },
       vertexShader: `
+        precision highp float;
         varying vec2 vUv; varying vec3 vN; varying vec3 vP;
         void main(){ vUv = uv;
           vN = normalize(mat3(modelMatrix) * normal);
           vec4 wp = modelMatrix * vec4(position,1.0); vP = wp.xyz;
           gl_Position = projectionMatrix * viewMatrix * wp; }`,
       fragmentShader: `
+        precision highp float;
         uniform sampler2D dayMap, nightMap, bumpMap; uniform vec3 sunDir;
         uniform float useBump, useNight;
         varying vec2 vUv; varying vec3 vN; varying vec3 vP;
@@ -79,16 +81,19 @@ export class EarthScene {
     this.scene.add(new THREE.Mesh(new THREE.SphereGeometry(R, 96, 96), this.earthMat));
 
     // Overlay shell (country fills & borders)
+    const maxTex = this.renderer.capabilities.maxTextureSize || 4096;
+    const texW = Math.min(4096, maxTex);
+    const texH = texW / 2;
     this.fillCv = document.createElement("canvas");
-    this.fillCv.width = 4096;
-    this.fillCv.height = 2048;
+    this.fillCv.width = texW;
+    this.fillCv.height = texH;
     this.fillCtx = this.fillCv.getContext("2d")!;
     this.fillTex = new THREE.CanvasTexture(this.fillCv);
     this.fillTex.wrapS = THREE.RepeatWrapping;
     this.fillTex.minFilter = THREE.LinearFilter;
     this.fillTex.magFilter = THREE.LinearFilter;
     this.fillTex.generateMipmaps = false;
-    this.fillTex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+    this.fillTex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
     const ovMat = new THREE.MeshBasicMaterial({ map: this.fillTex, transparent: true, depthWrite: false });
     const ov = new THREE.Mesh(new THREE.SphereGeometry(R_OVER, 96, 96), ovMat);
     ov.renderOrder = 2;
@@ -111,10 +116,14 @@ export class EarthScene {
         transparent: true,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
-        vertexShader: `varying vec3 vN; void main(){ vN = normalize(normalMatrix * normal);
+        vertexShader: `
+          precision highp float;
+          varying vec3 vN; void main(){ vN = normalize(normalMatrix * normal);
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-        fragmentShader: `varying vec3 vN; void main(){
-          float i = pow(0.72 - dot(vN, vec3(0.,0.,-1.)), 4.0);
+        fragmentShader: `
+          precision highp float;
+          varying vec3 vN; void main(){
+          float i = pow(0.72 - dot(vN, vec3(0.0, 0.0, -1.0)), 4.0);
           gl_FragColor = vec4(0.35, 0.58, 1.0, 1.0) * i; }`,
       })
     );
