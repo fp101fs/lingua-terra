@@ -21,7 +21,7 @@ export class UIManager {
       <div id="app">
         <canvas id="gl"></canvas><div class="vignette"></div>
         <div id="dock" class="glass">
-          <div class="grab"></div>
+          <div class="grab" id="dockGrab"></div>
           <div class="dock-head" id="dockHead">
             <div class="brand"><span class="logo">LINGUA·<em>TERRA</em></span><span class="sub">world language atlas</span></div>
             <div class="dock-sub">Where the world's languages are official</div>
@@ -105,6 +105,7 @@ export class UIManager {
       "dockLangColorRow",
       "btnColorByLang",
       "dockHead",
+      "dockGrab",
       "fps",
       "attrib",
     ].forEach(id => (this.el[id] = document.getElementById(id)!));
@@ -295,9 +296,30 @@ export class UIManager {
     this.el.btnAll.addEventListener("click", () => events.onSelectAll());
     this.el.btnClear.addEventListener("click", () => events.onClear());
     this.el.cardX.addEventListener("click", () => events.onCloseCard());
-    this.el.dockHead.addEventListener("click", () => {
+    const toggleDock = () => {
       if (matchMedia("(max-width:860px)").matches) this.el.dock.classList.toggle("open");
-    });
+    };
+    this.el.dockHead.addEventListener("click", toggleDock);
+    this.el.dockGrab?.addEventListener("click", toggleDock);
+
+    // Touch swipe gestures on mobile dock header
+    let touchStartY = 0;
+    this.el.dockHead.addEventListener("touchstart", (e: TouchEvent) => {
+      touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    this.el.dockHead.addEventListener("touchend", (e: TouchEvent) => {
+      const touchEndY = e.changedTouches[0].clientY;
+      const diffY = touchStartY - touchEndY;
+      if (diffY > 30) {
+        // Swiped up -> open
+        this.el.dock.classList.add("open");
+      } else if (diffY < -30) {
+        // Swiped down -> close
+        this.el.dock.classList.remove("open");
+      }
+    }, { passive: true });
+
     (this.el.gl as HTMLCanvasElement).addEventListener("click", e => events.onCanvasClick(e));
 
     // Tab switching: Languages vs Countries

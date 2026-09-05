@@ -28,6 +28,10 @@ class App {
   private hoverCode: string | null = null;
   private lastHoverPx = 0;
   private lastLabelDist = 3.0;
+  private sortedCountries: Country[] = [];
+  private zoomRedrawTimer: any = null;
+  private lastPinDist = 0;
+  private lastPinCamPos = new THREE.Vector3();
   private frames = 0;
   private fpsT = performance.now();
 
@@ -176,6 +180,11 @@ class App {
         c.langColor = c.color;
       }
     }
+
+    // Cache countries pre-sorted by label size (span) descending so overlay redraw is fast
+    this.sortedCountries = [...this.byCode.values()].sort(
+      (a, b) => (b.label?.span ?? 0) - (a.label?.span ?? 0)
+    );
   }
 
   activeCodes(): Set<string> {
@@ -259,15 +268,26 @@ class App {
     return code;
   }
 
-  private refreshPins() {
-    this.pins?.update(this.earthScene.cam, this.activeCodes(), this.layers.pins);
+  private refreshPins(force = false) {
+    if (!this.pins) return;
+    if (!this.layers.pins) {
+      this.pins.update(this.earthScene.cam, this.activeCodes(), false);
+      return;
+    }
+    const camPos = this.earthScene.cam.position;
+    if (!force) {
+      const dPos = camPos.distanceToSquared(this.lastPinCamPos);
+      if (dPos < 0.00004 && !this.controls.isMoving) return;
+    }
+    this.lastPinCamPos.copy(camPos);
+    this.pins.update(this.earthScene.cam, this.activeCodes(), true);
   }
 
   toggleLayer(layer: keyof LayerState) {
     this.layers[layer] = !this.layers[layer];
     this.earthScene.setLayer(layer, this.layers[layer]);
     if (layer === "pins") {
-      this.refreshPins();
+      this.refreshPins(true);
     }
     this.earthScene.overlayDirty = true;
     this.ui.updateLayersState(this.layers);
@@ -295,13 +315,19 @@ class App {
   private loop = () => {
     requestAnimationFrame(this.loop);
     const camDist = this.earthScene.cam.position.length();
-    if (Math.abs(camDist - this.lastLabelDist) > 0.15) {
+
+    // Debounce zoom-driven overlay canvas redraws so scrolling/pinching stays 60fps
+    if (Math.abs(camDist - this.lastLabelDist) > 0.20) {
       this.lastLabelDist = camDist;
-      this.earthScene.overlayDirty = true;
+      if (this.zoomRedrawTimer) clearTimeout(this.zoomRedrawTimer);
+      this.zoomRedrawTimer = setTimeout(() => {
+        this.earthScene.overlayDirty = true;
+      }, 100);
     }
+
     if (this.earthScene.overlayDirty) {
       this.earthScene.buildOverlayTexture(
-        [...this.byCode.values()],
+        this.sortedCountries.length ? this.sortedCountries : [...this.byCode.values()],
         this.activeCodes(),
         this.selCountry,
         this.layers,

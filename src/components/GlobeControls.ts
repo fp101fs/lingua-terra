@@ -24,6 +24,17 @@ export class GlobeControls {
   private opt: CtrlOpt;
   private raf = 0;
 
+  get isMoving(): boolean {
+    return (
+      this.raf !== 0 ||
+      this.dragging ||
+      this.pinching ||
+      this.zoomAnim !== null ||
+      Math.abs(this.vLon) > 0.0015 ||
+      Math.abs(this.vLat) > 0.0015
+    );
+  }
+
   constructor(cam: any, dom: HTMLElement, opt: CtrlOpt) {
     this.cam = cam;
     this.dom = dom;

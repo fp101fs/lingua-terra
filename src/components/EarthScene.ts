@@ -20,8 +20,12 @@ export class EarthScene {
   overlayDirty = true;
 
   constructor(canvas: HTMLCanvasElement) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      powerPreference: "high-performance",
+    });
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.outputEncoding = (THREE as any).sRGBEncoding;
 
@@ -255,24 +259,27 @@ export class EarthScene {
     if (layers.labels) {
       const placedItems: { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } }[] = [];
 
-      // Sort countries: selected first, active languages second, then largest countries first
-      const sorted = [...countries].sort((a, b) => {
-        const aSel = selCountry === a ? 1 : 0;
-        const bSel = selCountry === b ? 1 : 0;
-        if (aSel !== bSel) return bSel - aSel;
+      // High priority: selected country and active language countries.
+      // Remainder: other countries in pre-sorted order by label span (largest first).
+      const priority: Country[] = [];
+      const others: Country[] = [];
 
-        const aAct = active.has(a.meta.a2) ? 1 : 0;
-        const bAct = active.has(b.meta.a2) ? 1 : 0;
-        if (aAct !== bAct) return bAct - aAct;
+      if (selCountry && selCountry.label) {
+        priority.push(selCountry);
+      }
 
-        const aCall = a.label?.useCallout ? 0 : 1;
-        const bCall = b.label?.useCallout ? 0 : 1;
-        if (aCall !== bCall) return bCall - aCall;
+      for (const c of countries) {
+        if (c === selCountry || !c.label) continue;
+        if (active.has(c.meta.a2)) {
+          priority.push(c);
+        } else {
+          others.push(c);
+        }
+      }
 
-        return (b.label?.span ?? 0) - (a.label?.span ?? 0);
-      });
+      const drawOrder = priority.concat(others);
 
-      for (const c of sorted) {
+      for (const c of drawOrder) {
         if (!c.label) continue;
         const isActive = active.has(c.meta.a2);
         const isSelected = selCountry === c;
