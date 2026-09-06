@@ -22,7 +22,11 @@ export class UIManager {
         <canvas id="gl"></canvas><div class="vignette"></div>
         <div id="dock" class="glass">
           <div class="dock-head" id="dockHead">
-            <div class="grab" id="dockGrab"></div>
+            <div class="grab" id="dockGrab" aria-hidden="true">
+              <svg width="48" height="5" viewBox="0 0 48 5" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:100%;">
+                <rect width="48" height="5" rx="2.5" fill="#FFFFFF" />
+              </svg>
+            </div>
             <div class="brand"><span class="logo">LINGUA·<em>TERRA</em></span><span class="sub">world language atlas</span></div>
             <div class="dock-sub">Where the world's languages are official</div>
           </div>
