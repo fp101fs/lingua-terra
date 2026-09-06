@@ -1,4 +1,4 @@
-import { LANGS, langName, statusOf, flagOf } from "../data/languages";
+import { LANGS, langName, statusOf, flagOf, LANG_AUDIO, playLanguageAudio } from "../data/languages";
 import type { Country, LayerState } from "../types";
 import { fmtPop, cssHsl } from "../utils/geo";
 
@@ -58,6 +58,21 @@ export class UIManager {
         </div>
         <div id="card" class="glass"><div class="band"></div>
           <button class="x" id="cardX">✕</button><div class="inner" id="cardIn"></div></div>
+        <div id="hudReticle" class="hud-reticle" aria-hidden="true">
+          <div class="hud-box">
+            <span class="hud-bracket tl"></span>
+            <span class="hud-bracket tr"></span>
+            <span class="hud-bracket bl"></span>
+            <span class="hud-bracket br"></span>
+            <div class="hud-circle"></div>
+            <div class="hud-cross"></div>
+          </div>
+          <div class="hud-label">
+            <span class="hud-tag">TARGET LOCK</span>
+            <span class="hud-title" id="hudTitle"></span>
+            <span class="hud-coords" id="hudCoords"></span>
+          </div>
+        </div>
         <div id="hint" class="glass">Drag to spin · scroll or pinch to zoom · double-click to dive · click a country</div>
         <div id="fps"></div>
         <div id="load"><div class="orb"></div><div class="t">LINGUA·<em>TERRA</em></div>
@@ -78,6 +93,9 @@ export class UIManager {
       "card",
       "cardIn",
       "cardX",
+      "hudReticle",
+      "hudTitle",
+      "hudCoords",
       "hint",
       "load",
       "loadmsg",
@@ -123,17 +141,36 @@ export class UIManager {
     const box = this.el.langs;
     box.innerHTML = LANGS.map(
       L => `
-      <button class="lang" data-id="${L.id}">
-        <span class="fl">${L.flag}</span>
-        <span class="nm"><b>${L.name}</b><span>${L.native}</span></span>
-        <span class="ct">${L.countries.length}</span>
-      </button>`
+      <div class="lang" data-id="${L.id}">
+        <div class="lang-main" data-id="${L.id}">
+          <span class="fl">${L.flag}</span>
+          <span class="nm"><b>${L.name}</b><span>${L.native}</span></span>
+          <span class="ct">${L.countries.length}</span>
+        </div>
+        <button class="lang-audio-btn" data-lang="${L.id}" title="Pronounce ${L.name}" aria-label="Listen to ${L.name}">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          </svg>
+        </button>
+      </div>`
     ).join("");
 
-    box.querySelectorAll(".lang").forEach(b =>
+    box.querySelectorAll(".lang-main").forEach(b =>
       b.addEventListener("click", () => {
         const id = (b as HTMLElement).dataset.id!;
         onSelect(id);
+      })
+    );
+
+    box.querySelectorAll(".lang-audio-btn").forEach(b =>
+      b.addEventListener("click", e => {
+        e.stopPropagation();
+        const id = (b as HTMLElement).dataset.lang!;
+        b.classList.add("playing");
+        playLanguageAudio(id, () => {
+          b.classList.remove("playing");
+        });
       })
     );
   }
@@ -155,12 +192,39 @@ export class UIManager {
     this.el.btnAll.classList.toggle("on", mode === "all");
   }
 
+  setHudTarget(c: Country | null) {
+    if (!c) {
+      this.el.hudReticle?.classList.remove("active");
+      return;
+    }
+    const lat = c.center[1];
+    const lon = c.center[0];
+    const latStr = `${Math.abs(lat).toFixed(1)}°${lat >= 0 ? "N" : "S"}`;
+    const lonStr = `${Math.abs(lon).toFixed(1)}°${lon >= 0 ? "E" : "W"}`;
+    if (this.el.hudTitle) this.el.hudTitle.textContent = `${c.meta.name} [${c.meta.a2}]`;
+    if (this.el.hudCoords) this.el.hudCoords.textContent = `${latStr} · ${lonStr}`;
+    this.el.hudReticle?.classList.add("active");
+  }
+
+  updateHudPosition(screenX: number, screenY: number, visible: boolean) {
+    const ret = this.el.hudReticle;
+    if (!ret) return;
+    if (!visible) {
+      ret.style.opacity = "0";
+      return;
+    }
+    ret.style.opacity = "1";
+    ret.style.transform = `translate3d(${Math.round(screenX)}px, ${Math.round(screenY)}px, 0)`;
+  }
+
   showCountryCard(c: Country | null, mode: "none" | "lang" | "all", selectedLang: string | null) {
     const card = this.el.card;
     if (!c) {
       card.classList.remove("show");
+      this.setHudTarget(null);
       return;
     }
+    this.setHudTarget(c);
     const inSel = (langId: string) => (mode === "all" ? true : selectedLang === langId);
     const rows = c.langs
       .map(lid => {
@@ -178,7 +242,34 @@ export class UIManager {
       .join("");
 
     const primaryLangId = c.langs[0];
-    const primaryLangName = primaryLangId ? (langName(primaryLangId)?.name || primaryLangId) : "";
+    const primaryLangDef = primaryLangId ? langName(primaryLangId) : null;
+    const audio = primaryLangId ? LANG_AUDIO[primaryLangId] : null;
+
+    let audioBadgeHtml = "";
+    if (audio && primaryLangDef) {
+      audioBadgeHtml = `
+        <div class="c-audio-badge" id="cAudioBadge">
+          <div class="c-audio-text">
+            <div class="c-audio-top">
+              <span class="c-audio-native">${audio.greeting}</span>
+              <span class="c-audio-phonetic">/${audio.phonetic}/</span>
+            </div>
+            <div class="c-audio-sub"><span class="c-audio-autonym">${primaryLangDef.native}</span> · "${audio.meaning}"</div>
+          </div>
+          <button class="c-audio-play-btn" id="cAudioPlayBtn" data-lang="${primaryLangId}" title="Pronounce greeting in ${primaryLangDef.name}" aria-label="Listen">
+            <svg class="audio-speaker" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <path class="wave wave-1" d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+              <path class="wave wave-2" d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+            </svg>
+            <div class="audio-waves">
+              <span></span><span></span><span></span>
+            </div>
+          </button>
+        </div>`;
+    }
+
+    const primaryLangName = primaryLangDef ? primaryLangDef.name : "";
     const learnBtnHtml = primaryLangName
       ? `<div class="c-cta-wrap">
           <a href="#" class="c-learn-btn" id="cardLearnBtn" title="Learn ${primaryLangName}">
@@ -195,12 +286,25 @@ export class UIManager {
     this.el.cardIn.innerHTML = `
       <div class="c-head"><span class="fl">${flagOf(c.meta.a2)}</span>
         <div><h2>${c.meta.name}</h2><div class="code">ISO ${c.meta.a2} · ${fmtPop(c.meta.pop)} people</div></div></div>
+      ${audioBadgeHtml}
       <div class="c-rows">
         <div class="c-row"><div class="k">Capital</div><div class="v">${c.meta.cap}</div></div>
         <div class="c-row"><div class="k">Official languages (of the 12 tracked)</div><div class="chips">${chips}</div></div>
         ${rows}
       </div>
       ${learnBtnHtml}`;
+
+    const playBtn = card.querySelector("#cAudioPlayBtn") as HTMLElement;
+    if (playBtn && primaryLangId) {
+      playBtn.addEventListener("click", e => {
+        e.stopPropagation();
+        playBtn.classList.add("playing");
+        playLanguageAudio(primaryLangId, () => {
+          playBtn.classList.remove("playing");
+        });
+      });
+    }
+
     (card.querySelector(".band") as HTMLElement).style.background = `linear-gradient(90deg, ${cssHsl(
       c.color,
       1

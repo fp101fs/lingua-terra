@@ -1,10 +1,11 @@
 import "./ui/styles.css";
 import type { Country, LayerState } from "./types";
-import { START, BORDERS_URL } from "./constants";
+import { R, START, BORDERS_URL } from "./constants";
 import { NUM, LANGS, langName } from "./data/languages";
 import { deterministicColor, langColor, decodeTopoCountries, computeWidestLabel, geoToVec3, vecToGeo, wrapLon, clamp } from "./utils/geo";
 import { GlobeControls } from "./components/GlobeControls";
 import { PinManager } from "./components/PinManager";
+import { ArcManager } from "./components/ArcManager";
 import { EarthScene } from "./components/EarthScene";
 import { UIManager } from "./ui/UIManager";
 
@@ -23,6 +24,7 @@ class App {
   private earthScene!: EarthScene;
   private controls!: GlobeControls;
   private pins!: PinManager;
+  private arcs!: ArcManager;
   private ui = new UIManager();
 
   private hoverCode: string | null = null;
@@ -79,6 +81,8 @@ class App {
       this.applySelection(); // Show All on startup
 
       this.pins = new PinManager(this.earthScene.scene, [...this.byCode.values()]);
+      this.arcs = new ArcManager(this.earthScene.scene);
+      this.arcs.setSelection(this.sel.mode, this.sel.lang, this.byCode);
 
       this.ui.buildCountryList([...this.byCode.values()], c => {
         this.selectCountry(c, false);
@@ -243,6 +247,7 @@ class App {
   private applySelection() {
     this.earthScene.overlayDirty = true;
     this.ui.updateDockState(this.sel.mode, this.sel.lang, this.byCode, this.colorByLang);
+    this.arcs?.setSelection(this.sel.mode, this.sel.lang, this.byCode);
     if (this.selCountry && !this.activeCodes().has(this.selCountry.meta.a2)) {
       this.selectCountry(null, true);
     }
@@ -254,6 +259,10 @@ class App {
     this.selCountry = c;
     this.earthScene.overlayDirty = true;
     this.ui.showCountryCard(c, this.sel.mode, this.sel.lang);
+    if (c && !silent) {
+      const targetDist = clamp(2.05 + (c.angRad || 0.12) * 1.25, 1.85, 2.85);
+      this.controls.focusGeo(c.center[1], c.center[0], targetDist, 920);
+    }
     if (!silent) this.controls.kick();
   }
 
@@ -350,9 +359,27 @@ class App {
     }
     this.earthScene.updateSunAndClouds();
     this.refreshPins();
+    const now = performance.now();
+    this.arcs?.update(now * 0.001);
+
+    // Track HUD targeting reticle on selected country
+    if (this.selCountry) {
+      const camDir = this.earthScene.cam.position.clone().normalize();
+      const pTarget = geoToVec3(this.selCountry.center[1], this.selCountry.center[0], R * 1.008);
+      const horizonDot = (R * R) / Math.max(camDist, R * 1.01) + 0.03;
+      if (pTarget.dot(camDir) > horizonDot) {
+        const xy = this.controls.screenXY(pTarget);
+        if (xy) this.ui.updateHudPosition(xy.x, xy.y, true);
+        else this.ui.updateHudPosition(0, 0, false);
+      } else {
+        this.ui.updateHudPosition(0, 0, false);
+      }
+    } else {
+      this.ui.updateHudPosition(0, 0, false);
+    }
+
     this.earthScene.render();
     this.frames++;
-    const now = performance.now();
     if (now - this.fpsT > 1000) {
       this.ui.updateFPS(`${Math.round((this.frames * 1000) / (now - this.fpsT))} fps`);
       this.frames = 0;

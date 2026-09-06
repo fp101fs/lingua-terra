@@ -24,6 +24,67 @@ export const LANGS: LangDef[] = [
   { id: "th", name: "Thai",       native: "ไทย",          flag: "🇹🇭", countries: ["TH"] },
 ];
 
+export interface LangAudio {
+  greeting: string;
+  phonetic: string;
+  meaning: string;
+  bcp47: string;
+}
+
+export const LANG_AUDIO: Record<string, LangAudio> = {
+  en: { greeting: "Hello", phonetic: "heh-LOH", meaning: "Hello", bcp47: "en-US" },
+  zh: { greeting: "你好", phonetic: "Nǐ hǎo", meaning: "Hello", bcp47: "zh-CN" },
+  es: { greeting: "¡Hola!", phonetic: "OH-lah", meaning: "Hello", bcp47: "es-ES" },
+  fr: { greeting: "Bonjour", phonetic: "bohn-ZHOOR", meaning: "Hello", bcp47: "fr-FR" },
+  de: { greeting: "Guten Tag", phonetic: "GOO-ten TAHK", meaning: "Good day", bcp47: "de-DE" },
+  it: { greeting: "Ciao", phonetic: "CHOW", meaning: "Hello", bcp47: "it-IT" },
+  ko: { greeting: "안녕하세요", phonetic: "An-nyeong-ha-se-yo", meaning: "Hello", bcp47: "ko-KR" },
+  pt: { greeting: "Olá", phonetic: "oh-LAH", meaning: "Hello", bcp47: "pt-PT" },
+  ar: { greeting: "مرحباً", phonetic: "MAR-ha-ban", meaning: "Welcome", bcp47: "ar-SA" },
+  ru: { greeting: "Привет", phonetic: "pree-VYET", meaning: "Hello", bcp47: "ru-RU" },
+  hi: { greeting: "नमस्ते", phonetic: "Na-mas-tay", meaning: "Greetings", bcp47: "hi-IN" },
+  th: { greeting: "สวัสดี", phonetic: "sa-wat-dee", meaning: "Greetings", bcp47: "th-TH" },
+};
+
+/* Cultural / geographic origin anchor country code for linguistic flight arcs */
+export const LANG_HUBS: Record<string, string> = {
+  en: "GB",
+  es: "ES",
+  fr: "FR",
+  pt: "PT",
+  ar: "SA",
+  ru: "RU",
+  zh: "CN",
+  de: "DE",
+  it: "IT",
+  ko: "KR",
+  hi: "IN",
+  th: "TH",
+};
+
+export function playLanguageAudio(langId: string, onEnd?: () => void): boolean {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return false;
+  const info = LANG_AUDIO[langId];
+  if (!info) return false;
+  try {
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(info.greeting);
+    u.lang = info.bcp47;
+    u.rate = 0.88;
+    u.pitch = 1.0;
+    if (onEnd) {
+      u.onend = onEnd;
+      u.onerror = onEnd;
+    }
+    window.speechSynthesis.speak(u);
+    return true;
+  } catch (err) {
+    console.warn("SpeechSynthesis error:", err);
+    if (onEnd) onEnd();
+    return false;
+  }
+}
+
 /* ISO 3166-1 numeric → metadata. Population in millions (2023, approx.). */
 export const NUM: Record<number, [string, string, string, number, number, number]> = {
    4:["AF","Afghanistan","Kabul",34.6,69.2,41.1],   8:["AL","Albania","Tirana",41.3,19.8,2.8],
