@@ -19,15 +19,21 @@ export class PinManager {
         opacity: 1.0,
         alphaTest: 0.05,
       });
-      mat.color.setRGB(...hslToRgb(c.color[0], 0.85, 0.65));
-      const s = new THREE.Sprite(mat);
-      s.renderOrder = 10; // render on top of atmosphere & clouds for crisp opacity
-      s.center.set(0.5, 0.05); // anchor tip at country position
-      s.position.copy(geoToVec3(c.center[1], c.center[0], R * 1.013));
-      s.userData.code = c.meta.a2;
-      s.visible = false;
-      this.group.add(s);
-      this.sprites.push(s);
+      // Match the country's fill color (langColor when color-by-language is active) in a darker, richer tone
+      const baseColor = c.langColor || c.color;
+      const h = baseColor[0];
+      const s = Math.min(1.0, baseColor[1] * 1.05);
+      const l = Math.max(0.24, baseColor[2] * 0.72);
+      mat.color.setRGB(...hslToRgb(h, s, l));
+
+      const sSprite = new THREE.Sprite(mat);
+      sSprite.renderOrder = 10; // render on top of atmosphere & clouds for crisp opacity
+      sSprite.center.set(0.5, 0.05); // anchor tip at country position
+      sSprite.position.copy(geoToVec3(c.center[1], c.center[0], R * 1.013));
+      sSprite.userData.code = c.meta.a2;
+      sSprite.visible = false;
+      this.group.add(sSprite);
+      this.sprites.push(sSprite);
     }
     scene.add(this.group);
   }
