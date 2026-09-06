@@ -13,7 +13,7 @@ export class PinManager {
     for (const c of countries) {
       const mat = new THREE.SpriteMaterial({
         map: this.tex,
-        depthTest: true,
+        depthTest: false,
         depthWrite: false,
         transparent: true,
         opacity: 1.0,
@@ -71,13 +71,17 @@ export class PinManager {
       for (const s of this.sprites) s.visible = false;
       return;
     }
-    const showPins = cam.position.length() < PIN_SHOW_DIST;
+    const camDist = cam.position.length();
+    const showPins = camDist < PIN_SHOW_DIST;
     const camDir = cam.position.clone().normalize();
+    // Precise line-of-sight spherical horizon threshold (P · camDir > R^2 / D) plus margin
+    const horizonDot = (R * R) / Math.max(camDist, R * 1.01) + 0.04;
     for (const s of this.sprites) {
       const on = showPins && active.has(s.userData.code);
       s.visible = on;
       if (!on) continue;
-      s.visible = s.position.dot(camDir) > -0.06;
+      s.visible = s.position.dot(camDir) > horizonDot;
+      if (!s.visible) continue;
       const d = cam.position.distanceTo(s.position);
       const sc = clamp(d * 0.034, 0.02, 0.095);
       s.scale.set(sc, sc, 1);
