@@ -1,4 +1,3 @@
-import { CREDIT } from "../constants";
 import { LANGS, langName, statusOf, flagOf } from "../data/languages";
 import type { Country, LayerState } from "../types";
 import { fmtPop, cssHsl } from "../utils/geo";
@@ -27,22 +26,10 @@ export class UIManager {
                 <rect width="48" height="5" rx="2.5" fill="#FFFFFF" />
               </svg>
             </div>
-            <div class="brand"><span class="logo">LINGUA·<em>TERRA</em></span><span class="sub">world language atlas</span></div>
-            <div class="dock-sub">Where the world's languages are official</div>
-          </div>
-          <div class="dock-layers" id="dockLayers">
-            <button class="layer-btn on" data-layer="borders" title="Country Borders">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20M12 2a14.5 14.5 0 0 1 0 20M2 12h20"/></svg>
-              <span>Borders</span>
-            </button>
-            <button class="layer-btn on" data-layer="labels" title="Country Names (widest angle & callouts)">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="m4 19 4.5-12L13 19M5.5 14.5h6M15 9h6M17 6h4M17 12h4"/></svg>
-              <span>Names</span>
-            </button>
-            <button class="layer-btn on" data-layer="pins" title="Language Map Pins">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
-              <span>Pins</span>
-            </button>
+            <div class="brand">
+              <div class="logo">LINGUA·<em>TERRA</em></div>
+              <div class="sub">world language atlas</div>
+            </div>
           </div>
           <div class="dock-tabs">
             <button class="dock-tab active" id="tabLangs" data-tab="langs">
@@ -60,13 +47,6 @@ export class UIManager {
               <button class="chip" id="btnAll">✦ Show all</button>
               <button class="chip" id="btnClear">Reset</button>
             </div>
-            <div id="dockLangColorRow" class="dock-color-toggle-wrap">
-              <button class="color-by-lang-btn on" id="btnColorByLang">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M4.93 19.07 19.07 4.93"/></svg>
-                <span>Color by Language</span>
-                <span class="toggle-dot"></span>
-              </button>
-            </div>
             <div class="langs" id="langs"></div>
           </div>
           <div id="tabContentCountries" class="tab-content">
@@ -75,12 +55,11 @@ export class UIManager {
             </div>
             <div class="countries-list" id="countriesList"></div>
           </div>
-          <div class="dock-foot">${CREDIT}</div>
         </div>
         <div id="card" class="glass"><div class="band"></div>
           <button class="x" id="cardX">✕</button><div class="inner" id="cardIn"></div></div>
         <div id="hint" class="glass">Drag to spin · scroll or pinch to zoom · double-click to dive · click a country</div>
-        <div id="attrib">${CREDIT}</div><div id="fps"></div>
+        <div id="fps"></div>
         <div id="load"><div class="orb"></div><div class="t">LINGUA·<em>TERRA</em></div>
           <div id="loadmsg">Preparing the planet…</div><div id="loaderr"></div></div>
       </div>`;
@@ -88,7 +67,6 @@ export class UIManager {
     [
       "gl",
       "dock",
-      "dockLayers",
       "tabLangs",
       "tabCountries",
       "tabContentLangs",
@@ -106,12 +84,9 @@ export class UIManager {
       "loaderr",
       "btnAll",
       "btnClear",
-      "dockLangColorRow",
-      "btnColorByLang",
       "dockHead",
       "dockGrab",
       "fps",
-      "attrib",
     ].forEach(id => (this.el[id] = document.getElementById(id)!));
 
     return this.el.gl as HTMLCanvasElement;
@@ -178,18 +153,6 @@ export class UIManager {
       }
     });
     this.el.btnAll.classList.toggle("on", mode === "all");
-
-    // "Color by Language" toggle appears below Show All / Reset when in Show All or Language mode
-    if (this.el.dockLangColorRow) {
-      if (mode === "all" || mode === "lang") {
-        this.el.dockLangColorRow.classList.add("visible");
-      } else {
-        this.el.dockLangColorRow.classList.remove("visible");
-      }
-    }
-    if (this.el.btnColorByLang) {
-      this.el.btnColorByLang.classList.toggle("on", colorByLang);
-    }
   }
 
   showCountryCard(c: Country | null, mode: "none" | "lang" | "all", selectedLang: string | null) {
@@ -301,16 +264,7 @@ export class UIManager {
     }
   }
 
-  updateLayersState(layers: LayerState) {
-    const box = this.el.dockLayers;
-    if (!box) return;
-    box.querySelectorAll(".layer-btn").forEach(btn => {
-      const l = (btn as HTMLElement).dataset.layer as keyof LayerState;
-      if (l in layers) {
-        btn.classList.toggle("on", !!layers[l]);
-      }
-    });
-  }
+  updateLayersState(_layers: LayerState) {}
 
   bindEvents(events: UIEvents) {
     this.el.btnAll.addEventListener("click", () => events.onSelectAll());
@@ -354,15 +308,6 @@ export class UIManager {
       this.el.tabLangs.classList.remove("active");
       this.el.tabContentCountries.classList.add("active");
       this.el.tabContentLangs.classList.remove("active");
-    });
-
-    this.el.btnColorByLang?.addEventListener("click", () => events.onToggleColorByLang());
-
-    this.el.dockLayers.querySelectorAll(".layer-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const layer = (btn as HTMLElement).dataset.layer as keyof LayerState;
-        events.onToggleLayer(layer);
-      });
     });
   }
 }
