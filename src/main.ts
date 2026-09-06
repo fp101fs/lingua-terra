@@ -13,7 +13,7 @@ class App {
   byCode = new Map<string, Country>();
   sel = { mode: "none" as "none" | "lang" | "all", lang: null as string | null };
   selCountry: Country | null = null;
-  colorByLang = false; // default false for non-showAll, true for showAll
+  colorByLang = true; // enabled by default
   layers: LayerState = {
     borders: true,
     labels: true,
@@ -201,10 +201,8 @@ class App {
   selectLang(id: string | null) {
     if (id === null) {
       this.sel = { mode: "none", lang: null };
-      this.colorByLang = false; // off is default for non-showAll
     } else {
       this.sel = { mode: "lang", lang: id };
-      this.colorByLang = false; // off is default for non-showAll
     }
     this.applySelection();
     if (id) {

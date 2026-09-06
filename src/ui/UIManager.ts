@@ -21,8 +21,8 @@ export class UIManager {
       <div id="app">
         <canvas id="gl"></canvas><div class="vignette"></div>
         <div id="dock" class="glass">
-          <div class="grab" id="dockGrab"></div>
           <div class="dock-head" id="dockHead">
+            <div class="grab" id="dockGrab"></div>
             <div class="brand"><span class="logo">LINGUA·<em>TERRA</em></span><span class="sub">world language atlas</span></div>
             <div class="dock-sub">Where the world's languages are official</div>
           </div>

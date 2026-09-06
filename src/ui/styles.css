@@ -83,6 +83,10 @@ body {
   padding: 14px 16px 10px;
 }
 
+.grab {
+  display: none;
+}
+
 .brand {
   display: flex;
   align-items: baseline;
@@ -736,7 +740,7 @@ body {
     border-bottom: none;
     border-top: 1px solid rgba(255, 255, 255, 0.14);
     box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.72), 0 -1px 0 rgba(255, 255, 255, 0.08);
-    transform: translateY(calc(100% - 62px - var(--sab)));
+    transform: translateY(calc(100% - 70px - var(--sab)));
     transition: transform 0.35s cubic-bezier(0.18, 0.89, 0.32, 1.05);
     padding-bottom: var(--sab);
     background: rgba(8, 13, 24, 0.88);
@@ -753,22 +757,24 @@ body {
     width: 4px;
     height: 16px;
     border-radius: 2px;
-    background: rgba(255, 255, 255, 0.85);
-    box-shadow: 0 0 8px rgba(111, 183, 255, 0.6), 0 2px 4px rgba(0, 0, 0, 0.5);
+    background: #ffffff;
+    box-shadow: 0 0 10px rgba(111, 183, 255, 0.8), 0 2px 5px rgba(0, 0, 0, 0.6);
     position: absolute;
     left: 50%;
-    top: 7px;
+    top: 6px;
     transform: translateX(-50%);
     cursor: grab;
     touch-action: none;
+    z-index: 10;
   }
 
   .dock-head {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 24px 18px 10px;
+    padding: 24px 18px 12px;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
