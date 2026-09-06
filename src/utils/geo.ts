@@ -282,13 +282,35 @@ export function computeWidestLabel(
     fitFont = maxFont0;
   }
 
+  // Center the label inside its printable geographic border width
+  let finalCX = cx;
+  let finalCY = cy;
+  if (finalAngle === 0 && (maxX0 - minX0) < 180) {
+    const midDX = (minX0 + maxX0) / 2;
+    const midDY = (minY0 + maxY0) / 2;
+    const candCX = cx + midDX / (cosLat || 1);
+    const candCY = cy + midDY;
+    // Verify point is inside the polygon boundary before shifting
+    let inside = false;
+    for (let i = 0, j = bestPoly.length - 1; i < bestPoly.length; j = i++) {
+      const xi = bestPoly[i][0], yi = bestPoly[i][1];
+      const xj = bestPoly[j][0], yj = bestPoly[j][1];
+      const intersect = ((yi > candCY) !== (yj > candCY)) && (candCX < ((xj - xi) * (candCY - yi)) / (yj - yi) + xi);
+      if (intersect) inside = !inside;
+    }
+    if (inside) {
+      finalCX = candCX;
+      finalCY = candCY;
+    }
+  }
+
   const targetFont = Math.round(13 + span * 1.1);
   const fontSize = clamp(Math.min(targetFont, fitFont), 8, 28);
   const maxLen = Math.max(16, pxLen);
 
   return {
-    cx,
-    cy,
+    cx: finalCX,
+    cy: finalCY,
     angle: finalAngle,
     span,
     fontSize,

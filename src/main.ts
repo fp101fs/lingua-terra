@@ -152,14 +152,21 @@ class App {
           if (a > maxAng) maxAng = a;
         }
       }
+      const label = computeWidestLabel(polys, name);
+      // For the United States, all-polygon vertex averaging pulls the pin northwest into the
+      // remote Canadian/Alaskan subarctic border (lat ~50.7°, lon ~-116.3°).
+      // Anchor US pin and camera focus to the mainland center (-95.8°, 37.2°).
+      const centerLon = a2 === "US" && label ? label.cx : cg.lon;
+      const centerLat = a2 === "US" && label ? label.cy : cg.lat;
+
       const c: Country = {
         meta: { a2, name, cap, capLat, capLon, pop },
         polys,
-        center: [cg.lon, cg.lat],
+        center: [centerLon, centerLat],
         angRad: maxAng,
         color: deterministicColor(a2),
         langs: [],
-        label: computeWidestLabel(polys, name),
+        label,
       };
       this.countries.set(numId, c);
       this.byCode.set(a2, c);
