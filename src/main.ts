@@ -6,6 +6,7 @@ import { deterministicColor, langColor, decodeTopoCountries, computeWidestLabel,
 import { GlobeControls } from "./components/GlobeControls";
 import { PinManager } from "./components/PinManager";
 import { ArcManager } from "./components/ArcManager";
+import { CountryGlow } from "./components/CountryGlow";
 import { EarthScene } from "./components/EarthScene";
 import { UIManager } from "./ui/UIManager";
 
@@ -25,6 +26,7 @@ class App {
   private controls!: GlobeControls;
   private pins!: PinManager;
   private arcs!: ArcManager;
+  private countryGlow!: CountryGlow;
   private ui = new UIManager();
 
   private hoverCode: string | null = null;
@@ -83,6 +85,7 @@ class App {
       this.pins = new PinManager(this.earthScene.scene, [...this.byCode.values()]);
       this.arcs = new ArcManager(this.earthScene.scene);
       this.arcs.setSelection(this.sel.mode, this.sel.lang, this.byCode);
+      this.countryGlow = new CountryGlow(this.earthScene.scene);
 
       this.ui.buildCountryList([...this.byCode.values()], c => {
         this.selectCountry(c, false);
@@ -241,6 +244,7 @@ class App {
     this.colorByLang = !this.colorByLang;
     this.earthScene.overlayDirty = true;
     this.ui.updateDockState(this.sel.mode, this.sel.lang, this.byCode, this.colorByLang);
+    this.countryGlow?.setCountry(this.selCountry, this.colorByLang);
     this.controls.kick();
   }
 
@@ -259,6 +263,7 @@ class App {
     this.selCountry = c;
     this.earthScene.overlayDirty = true;
     this.ui.showCountryCard(c, this.sel.mode, this.sel.lang);
+    this.countryGlow?.setCountry(c, this.colorByLang);
     if (c && !silent) {
       const targetDist = clamp(2.05 + (c.angRad || 0.12) * 1.25, 1.85, 2.85);
       this.controls.focusGeo(c.center[1], c.center[0], targetDist, 920);
@@ -361,22 +366,7 @@ class App {
     this.refreshPins();
     const now = performance.now();
     this.arcs?.update(now * 0.001);
-
-    // Track HUD targeting reticle on selected country
-    if (this.selCountry) {
-      const camDir = this.earthScene.cam.position.clone().normalize();
-      const pTarget = geoToVec3(this.selCountry.center[1], this.selCountry.center[0], R * 1.008);
-      const horizonDot = (R * R) / Math.max(camDist, R * 1.01) + 0.03;
-      if (pTarget.dot(camDir) > horizonDot) {
-        const xy = this.controls.screenXY(pTarget);
-        if (xy) this.ui.updateHudPosition(xy.x, xy.y, true);
-        else this.ui.updateHudPosition(0, 0, false);
-      } else {
-        this.ui.updateHudPosition(0, 0, false);
-      }
-    } else {
-      this.ui.updateHudPosition(0, 0, false);
-    }
+    this.countryGlow?.update(now * 0.001);
 
     this.earthScene.render();
     this.frames++;

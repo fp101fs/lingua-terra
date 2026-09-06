@@ -254,13 +254,38 @@ export class EarthScene {
       // Active / highlighted borders
       for (const c of countries) {
         if (!active.has(c.meta.a2)) continue;
-        const em = selCountry === c;
+        if (selCountry === c) continue; // draw selected country on top with radiant glow
         const col = colorByLang && c.langColor ? c.langColor : c.color;
-        g.strokeStyle = cssHsl(col, em ? 1 : 0.95, 18);
-        g.lineWidth = em ? 4.5 : 3.0;
+        g.strokeStyle = cssHsl(col, 0.95, 18);
+        g.lineWidth = 3.0;
         g.beginPath();
         for (const p of c.polys) this.tracePoly(g, p, W, H);
         g.stroke();
+      }
+
+      // Selected country radiant border glow
+      if (selCountry) {
+        const c = selCountry;
+        const col = colorByLang && c.langColor ? c.langColor : c.color;
+        g.save();
+        g.lineJoin = "round";
+        g.lineCap = "round";
+        // Wide luminous outer halo
+        g.shadowColor = cssHsl(col, 1, 25);
+        g.shadowBlur = 22;
+        g.strokeStyle = cssHsl(col, 0.95, 20);
+        g.lineWidth = 8.0;
+        g.beginPath();
+        for (const p of c.polys) this.tracePoly(g, p, W, H);
+        g.stroke();
+        // Crisp inner highlight
+        g.shadowBlur = 8;
+        g.strokeStyle = "#ffffff";
+        g.lineWidth = 3.5;
+        g.beginPath();
+        for (const p of c.polys) this.tracePoly(g, p, W, H);
+        g.stroke();
+        g.restore();
       }
     }
 

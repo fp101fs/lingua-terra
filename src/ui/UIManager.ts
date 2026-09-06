@@ -58,21 +58,6 @@ export class UIManager {
         </div>
         <div id="card" class="glass"><div class="band"></div>
           <button class="x" id="cardX">✕</button><div class="inner" id="cardIn"></div></div>
-        <div id="hudReticle" class="hud-reticle" aria-hidden="true">
-          <div class="hud-box">
-            <span class="hud-bracket tl"></span>
-            <span class="hud-bracket tr"></span>
-            <span class="hud-bracket bl"></span>
-            <span class="hud-bracket br"></span>
-            <div class="hud-circle"></div>
-            <div class="hud-cross"></div>
-          </div>
-          <div class="hud-label">
-            <span class="hud-tag">TARGET LOCK</span>
-            <span class="hud-title" id="hudTitle"></span>
-            <span class="hud-coords" id="hudCoords"></span>
-          </div>
-        </div>
         <div id="hint" class="glass">Drag to spin · scroll or pinch to zoom · double-click to dive · click a country</div>
         <div id="fps"></div>
         <div id="load"><div class="orb"></div><div class="t">LINGUA·<em>TERRA</em></div>
@@ -93,9 +78,6 @@ export class UIManager {
       "card",
       "cardIn",
       "cardX",
-      "hudReticle",
-      "hudTitle",
-      "hudCoords",
       "hint",
       "load",
       "loadmsg",
@@ -192,39 +174,12 @@ export class UIManager {
     this.el.btnAll.classList.toggle("on", mode === "all");
   }
 
-  setHudTarget(c: Country | null) {
-    if (!c) {
-      this.el.hudReticle?.classList.remove("active");
-      return;
-    }
-    const lat = c.center[1];
-    const lon = c.center[0];
-    const latStr = `${Math.abs(lat).toFixed(1)}°${lat >= 0 ? "N" : "S"}`;
-    const lonStr = `${Math.abs(lon).toFixed(1)}°${lon >= 0 ? "E" : "W"}`;
-    if (this.el.hudTitle) this.el.hudTitle.textContent = `${c.meta.name} [${c.meta.a2}]`;
-    if (this.el.hudCoords) this.el.hudCoords.textContent = `${latStr} · ${lonStr}`;
-    this.el.hudReticle?.classList.add("active");
-  }
-
-  updateHudPosition(screenX: number, screenY: number, visible: boolean) {
-    const ret = this.el.hudReticle;
-    if (!ret) return;
-    if (!visible) {
-      ret.style.opacity = "0";
-      return;
-    }
-    ret.style.opacity = "1";
-    ret.style.transform = `translate3d(${Math.round(screenX)}px, ${Math.round(screenY)}px, 0)`;
-  }
-
   showCountryCard(c: Country | null, mode: "none" | "lang" | "all", selectedLang: string | null) {
     const card = this.el.card;
     if (!c) {
       card.classList.remove("show");
-      this.setHudTarget(null);
       return;
     }
-    this.setHudTarget(c);
     const inSel = (langId: string) => (mode === "all" ? true : selectedLang === langId);
     const rows = c.langs
       .map(lid => {

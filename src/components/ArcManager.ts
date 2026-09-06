@@ -4,8 +4,7 @@ import { LANGS, LANG_HUBS, langName } from "../data/languages";
 import { geoToVec3, clamp, langColor, hslToRgb } from "../utils/geo";
 
 interface ArcData {
-  curve: any;
-  points: any[];
+  points: any[]; // THREE.Vector3 array
   length: number;
 }
 
@@ -22,7 +21,7 @@ export class ArcManager {
 
   constructor(scene: any) {
     this.group = new THREE.Group();
-    this.group.renderOrder = 4;
+    this.group.renderOrder = 7;
     this.group.visible = false;
 
     // Glowing additive lines
@@ -33,7 +32,7 @@ export class ArcManager {
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       depthTest: true,
-      linewidth: 1.5,
+      linewidth: 1.8,
     });
 
     // Pulse particles traveling along arcs
@@ -43,15 +42,15 @@ export class ArcManager {
     const ctx = cv.getContext("2d")!;
     const rad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
     rad.addColorStop(0, "rgba(255, 255, 255, 1)");
-    rad.addColorStop(0.35, "rgba(180, 220, 255, 0.85)");
-    rad.addColorStop(0.7, "rgba(70, 150, 255, 0.35)");
+    rad.addColorStop(0.35, "rgba(200, 230, 255, 0.9)");
+    rad.addColorStop(0.7, "rgba(70, 160, 255, 0.4)");
     rad.addColorStop(1, "rgba(0, 0, 0, 0)");
     ctx.fillStyle = rad;
     ctx.fillRect(0, 0, 64, 64);
     const particleTex = new THREE.CanvasTexture(cv);
 
     this.particleMat = new THREE.PointsMaterial({
-      size: 0.045,
+      size: 0.052,
       map: particleTex,
       transparent: true,
       opacity: 0,
@@ -124,45 +123,77 @@ export class ArcManager {
       return;
     }
 
-    // Build curve points
+    // Build curve points using Spherical Great-Circle Interpolation (SLERP)
     const lineVertices: number[] = [];
     const lineColors: number[] = [];
     const [r, g, b] = hslToRgb(...this.currentColor);
     this.lineMat.color.setRGB(r, g, b);
     this.particleMat.color.setRGB(Math.min(1, r * 1.3), Math.min(1, g * 1.3), Math.min(1, b * 1.3));
 
+    const rBase = R * 1.008;
+
     for (const def of arcDefs) {
-      const p0 = geoToVec3(def.from.center[1], def.from.center[0], R * 1.006);
-      const p2 = geoToVec3(def.to.center[1], def.to.center[0], R * 1.006);
+      const p0 = geoToVec3(def.from.center[1], def.from.center[0], 1.0);
+      const p2 = geoToVec3(def.to.center[1], def.to.center[0], 1.0);
 
-      const d = p0.distanceTo(p2);
-      if (d < 0.05) continue; // skip tiny or self-arcs
+      const u0 = p0.clone().normalize();
+      const u2 = p2.clone().normalize();
 
-      const dotVal = clamp(p0.dot(p2) / (R * 1.006 * R * 1.006), -1, 1);
+      const dotVal = clamp(u0.dot(u2), -1, 1);
       const angle = Math.acos(dotVal);
+      if (angle < 0.04) continue; // skip identical or tiny distance
 
-      // Parabolic altitude scales with angular separation
-      const altitude = R * (1.012 + Math.sin(angle / 2) * 0.28);
-      const mid = p0.clone().add(p2).multiplyScalar(0.5).normalize().multiplyScalar(altitude);
+      // Determine rotation axis for slerp
+      let axis: any;
+      if (angle > 3.12) {
+        axis = Math.abs(u0.x) < 0.8 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+        axis.cross(u0).normalize();
+      } else {
+        axis = new THREE.Vector3().crossVectors(u0, u2).normalize();
+      }
 
-      const curve = new THREE.QuadraticBezierCurve3(p0, mid, p2);
-      const steps = Math.max(20, Math.min(60, Math.round(angle * 26)));
-      const pts = curve.getPoints(steps);
+      const sinOmega = Math.sin(angle);
+      // Elevation factor scales smoothly with great-circle angular distance
+      const altitudeFactor = 0.04 + Math.sin(angle / 2) * 0.34;
+      const steps = Math.max(28, Math.min(72, Math.round(angle * 26)));
+      const pts: any[] = [];
+
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        let u: any;
+        if (sinOmega < 0.0001) {
+          u = u0.clone().applyAxisAngle(axis, angle * t);
+        } else {
+          const w0 = Math.sin((1 - t) * angle) / sinOmega;
+          const w2 = Math.sin(t * angle) / sinOmega;
+          u = u0.clone().multiplyScalar(w0).addScaledVector(u2, w2).normalize();
+        }
+
+        // Parabolic arc guaranteed to stay strictly above globe surface
+        const alt = Math.sin(t * Math.PI) * altitudeFactor;
+        const radius = rBase * (1.0 + alt);
+        pts.push(u.multiplyScalar(radius));
+      }
+
+      let arcLength = 0;
+      for (let i = 0; i < pts.length - 1; i++) {
+        arcLength += pts[i].distanceTo(pts[i + 1]);
+      }
 
       this.currentArcs.push({
-        curve,
         points: pts,
-        length: curve.getLength(),
+        length: arcLength,
       });
 
       const [cr, cg, cb] = hslToRgb(...def.color);
       for (let i = 0; i < pts.length - 1; i++) {
         lineVertices.push(pts[i].x, pts[i].y, pts[i].z);
         lineVertices.push(pts[i + 1].x, pts[i + 1].y, pts[i + 1].z);
+        // Soft fade near launch and landing points
         const t1 = Math.sin((i / (pts.length - 1)) * Math.PI);
         const t2 = Math.sin(((i + 1) / (pts.length - 1)) * Math.PI);
-        lineColors.push(cr * t1, cg * t1, cb * t1);
-        lineColors.push(cr * t2, cg * t2, cb * t2);
+        lineColors.push(cr * (0.2 + 0.8 * t1), cg * (0.2 + 0.8 * t1), cb * (0.2 + 0.8 * t1));
+        lineColors.push(cr * (0.2 + 0.8 * t2), cg * (0.2 + 0.8 * t2), cb * (0.2 + 0.8 * t2));
       }
     }
 
@@ -181,7 +212,7 @@ export class ArcManager {
       this.particleMesh = new THREE.Points(particleGeom, this.particleMat);
       this.group.add(this.particleMesh);
 
-      this.targetOpacity = 0.85;
+      this.targetOpacity = 0.88;
       this.group.visible = true;
     }
   }
@@ -199,21 +230,31 @@ export class ArcManager {
 
     if (!this.group.visible) return;
 
-    this.lineMat.opacity = this.opacity * 0.75;
+    this.lineMat.opacity = this.opacity * 0.78;
     this.particleMat.opacity = this.opacity * 0.95;
 
-    // Animate traveling particles along curves
+    // Animate traveling particles along great-circle points
     if (this.particleMesh && this.currentArcs.length) {
       const posAttr = this.particleMesh.geometry.attributes.position;
       const arr = posAttr.array;
 
       for (let i = 0; i < this.currentArcs.length; i++) {
         const arc = this.currentArcs[i];
+        const pts = arc.points;
+        if (!pts.length) continue;
         const phase = (timeSeconds * 0.35 + i * 0.19) % 1;
-        const pt = arc.curve.getPoint(phase);
-        arr[i * 3] = pt.x;
-        arr[i * 3 + 1] = pt.y;
-        arr[i * 3 + 2] = pt.z;
+        const idx = phase * (pts.length - 1);
+        const i0 = Math.floor(idx);
+        const i1 = Math.min(pts.length - 1, i0 + 1);
+        const frac = idx - i0;
+
+        const px = pts[i0].x + (pts[i1].x - pts[i0].x) * frac;
+        const py = pts[i0].y + (pts[i1].y - pts[i0].y) * frac;
+        const pz = pts[i0].z + (pts[i1].z - pts[i0].z) * frac;
+
+        arr[i * 3] = px;
+        arr[i * 3 + 1] = py;
+        arr[i * 3 + 2] = pz;
       }
       posAttr.needsUpdate = true;
     }
