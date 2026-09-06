@@ -21,7 +21,7 @@ body {
   overflow: hidden;
   background: var(--bg);
   color: var(--ink);
-  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, "Helvetica Neue", Arial, sans-serif;
+  font: 18px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
 }
@@ -71,7 +71,7 @@ body {
   position: absolute;
   left: 16px;
   top: 16px;
-  width: 252px;
+  width: 320px;
   display: flex;
   flex-direction: column;
   max-height: calc(100% - 32px);
@@ -80,7 +80,7 @@ body {
 }
 
 .dock-head {
-  padding: 14px 16px 10px;
+  padding: 16px 18px 12px;
 }
 
 .grab {
@@ -90,11 +90,11 @@ body {
 .brand {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 10px;
 }
 
 .brand .logo {
-  font-size: 19px;
+  font-size: 26px;
   letter-spacing: 0.06em;
   font-weight: 800;
 }
@@ -105,23 +105,23 @@ body {
 }
 
 .brand .sub {
-  font-size: 10.5px;
+  font-size: 14px;
   color: var(--dim);
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
 .dock-sub {
-  margin-top: 4px;
-  font-size: 12px;
+  margin-top: 5px;
+  font-size: 16px;
   color: var(--dim);
 }
 
 .dock-layers {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  padding: 6px 12px 8px;
+  gap: 8px;
+  padding: 8px 14px 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
@@ -130,20 +130,22 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  padding: 6px 2px;
+  gap: 4px;
+  padding: 8px 4px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  border-radius: 9px;
   background: rgba(255, 255, 255, 0.03);
   color: var(--dim);
   cursor: pointer;
   transition: all 0.16s ease;
-  font-size: 9.5px;
+  font-size: 14px;
   font-weight: 500;
   user-select: none;
 }
 
 .layer-btn svg {
+  width: 18px;
+  height: 18px;
   opacity: 0.55;
   transition: opacity 0.16s, transform 0.16s;
 }
@@ -171,8 +173,8 @@ body {
 
 .dock-tabs {
   display: flex;
-  padding: 8px 12px 6px;
-  gap: 6px;
+  padding: 10px 14px 8px;
+  gap: 8px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
@@ -181,16 +183,21 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 7px 8px;
+  gap: 8px;
+  padding: 9px 10px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
   color: var(--dim);
-  font-size: 11.5px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.16s ease;
+}
+
+.dock-tab svg {
+  width: 17px;
+  height: 17px;
 }
 
 .dock-tab:hover {
@@ -206,9 +213,9 @@ body {
 
 .tab-badge {
   background: rgba(255, 255, 255, 0.15);
-  padding: 1px 6px;
-  border-radius: 8px;
-  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--acc);
 }
@@ -226,17 +233,17 @@ body {
 }
 
 .countries-search-wrap {
-  padding: 8px 12px 6px;
+  padding: 10px 14px 8px;
 }
 
 .country-search {
   width: 100%;
-  padding: 7px 10px;
-  border-radius: 9px;
+  padding: 9px 12px;
+  border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(0, 0, 0, 0.25);
   color: var(--ink);
-  font-size: 12px;
+  font-size: 16px;
   outline: none;
   transition: border-color 0.16s;
 }
@@ -251,7 +258,7 @@ body {
 
 .countries-list {
   overflow-y: auto;
-  padding: 2px 8px 10px;
+  padding: 3px 8px 12px;
   scrollbar-width: thin;
   flex: 1;
 }
@@ -268,12 +275,12 @@ body {
 .country-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 7px 9px;
-  margin: 2px 0;
+  padding: 9px 11px;
+  margin: 3px 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: 11px;
   background: transparent;
   color: var(--ink);
   text-align: left;
@@ -291,7 +298,7 @@ body {
 }
 
 .c-flag {
-  font-size: 17px;
+  font-size: 24px;
   line-height: 1;
   flex-shrink: 0;
 }
@@ -303,7 +310,7 @@ body {
 }
 
 .c-name {
-  font-size: 12.5px;
+  font-size: 16px;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -311,7 +318,7 @@ body {
 }
 
 .c-sub {
-  font-size: 10.5px;
+  font-size: 14px;
   color: var(--dim);
   white-space: nowrap;
   overflow: hidden;
@@ -320,8 +327,8 @@ body {
 
 .dock-actions {
   display: flex;
-  gap: 8px;
-  padding: 6px 12px 10px;
+  gap: 10px;
+  padding: 8px 14px 12px;
 }
 
 .chip {
@@ -329,9 +336,9 @@ body {
   border: 1px solid var(--stroke);
   background: rgba(255, 255, 255, 0.04);
   color: var(--ink);
-  border-radius: 10px;
-  padding: 7px 0;
-  font-size: 12px;
+  border-radius: 11px;
+  padding: 9px 0;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   transition: 0.18s;
@@ -349,7 +356,7 @@ body {
 
 .dock-color-toggle-wrap {
   display: none;
-  padding: 0 12px 8px;
+  padding: 0 14px 10px;
 }
 
 .dock-color-toggle-wrap.visible {
@@ -361,26 +368,28 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 6px 12px;
-  border-radius: 9px;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.04);
   color: var(--dim);
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.16s ease;
 }
 
 .color-by-lang-btn svg {
+  width: 17px;
+  height: 17px;
   opacity: 0.6;
   flex-shrink: 0;
 }
 
 .color-by-lang-btn .toggle-dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.25);
   transition: all 0.16s ease;
@@ -409,7 +418,7 @@ body {
 
 .langs {
   overflow-y: auto;
-  padding: 2px 8px 10px;
+  padding: 3px 8px 12px;
   scrollbar-width: thin;
 }
 
@@ -425,12 +434,12 @@ body {
 .lang {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 8px 10px;
-  margin: 2px 0;
+  padding: 10px 12px;
+  margin: 3px 0;
   border: 0;
-  border-radius: 12px;
+  border-radius: 13px;
   background: transparent;
   color: var(--ink);
   text-align: left;
@@ -443,7 +452,7 @@ body {
 }
 
 .lang .fl {
-  font-size: 20px;
+  font-size: 26px;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
 }
 
@@ -451,24 +460,24 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  line-height: 1.15;
+  line-height: 1.2;
 }
 
 .lang .nm b {
   font-weight: 600;
-  font-size: 13.5px;
+  font-size: 17px;
 }
 
 .lang .nm span {
-  font-size: 11px;
+  font-size: 14.5px;
   color: var(--dim);
 }
 
 .lang .ct {
-  font-size: 11px;
+  font-size: 14px;
   color: var(--dim);
   background: rgba(255, 255, 255, 0.06);
-  padding: 2px 7px;
+  padding: 3px 9px;
   border-radius: 20px;
 }
 
@@ -483,18 +492,19 @@ body {
 }
 
 .dock-foot {
-  padding: 8px 16px 12px;
-  font-size: 10.5px;
+  padding: 10px 18px 14px;
+  font-size: 14px;
   color: #7d8ea8;
   border-top: 1px solid var(--stroke);
+  line-height: 1.4;
 }
 
 /* ---------- country card ---------- */
 #card {
   position: absolute;
-  right: 16px;
-  top: 16px;
-  width: 320px;
+  right: 18px;
+  top: 18px;
+  width: 400px;
   z-index: 22;
   padding: 0;
   overflow: hidden;
@@ -511,25 +521,28 @@ body {
 }
 
 #card .band {
-  height: 5px;
+  height: 6px;
 }
 
 #card .inner {
-  padding: 16px 18px 15px;
+  padding: 20px 22px 20px;
 }
 
 #card .x {
   position: absolute;
-  top: 10px;
-  right: 12px;
-  width: 26px;
-  height: 26px;
+  top: 12px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 9px;
   background: rgba(255, 255, 255, 0.07);
   color: var(--dim);
-  font-size: 13px;
+  font-size: 16px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #card .x:hover {
@@ -539,63 +552,64 @@ body {
 
 .c-head {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   align-items: center;
 }
 
 .c-head .fl {
-  font-size: 38px;
+  font-size: 52px;
   line-height: 1;
 }
 
 .c-head h2 {
-  font-size: 18px;
+  font-size: 25px;
   font-weight: 700;
   letter-spacing: 0.01em;
 }
 
 .c-head .code {
-  font-size: 11px;
+  font-size: 15px;
   color: var(--dim);
   letter-spacing: 0.12em;
 }
 
 .c-rows {
-  margin-top: 12px;
+  margin-top: 16px;
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 12px;
 }
 
 .c-row .k {
-  font-size: 10px;
-  letter-spacing: 0.16em;
+  font-size: 14px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #7d8ea8;
+  color: #8da2be;
+  font-weight: 600;
 }
 
 .c-row .v {
-  font-size: 13.5px;
-  margin-top: 1px;
+  font-size: 18px;
+  margin-top: 2px;
 }
 
 .c-row .note {
-  font-size: 12px;
+  font-size: 16px;
   color: var(--dim);
-  margin-top: 1px;
+  margin-top: 2px;
 }
 
 .chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 2px;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 .lchip {
-  font-size: 12px;
-  padding: 3px 9px;
-  border-radius: 20px;
+  font-size: 16px;
+  padding: 5px 12px;
+  border-radius: 22px;
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid var(--stroke);
 }
@@ -605,16 +619,71 @@ body {
   border-color: rgba(120, 170, 255, 0.5);
 }
 
+/* Rich green Learn CTA button */
+.c-cta-wrap {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.c-learn-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 18px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  box-shadow: 0 4px 18px rgba(16, 185, 129, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  cursor: pointer;
+}
+
+.c-learn-btn:hover {
+  transform: translateY(-1px);
+  background: linear-gradient(135deg, #34d399 0%, #10b981 50%, #059669 100%);
+  box-shadow: 0 6px 24px rgba(16, 185, 129, 0.52), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+}
+
+.c-learn-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.35);
+}
+
+.c-learn-btn svg {
+  flex-shrink: 0;
+  stroke: #ffffff;
+}
+
+.c-learn-btn .cta-arrow {
+  font-size: 20px;
+  font-weight: 800;
+  margin-left: 2px;
+  transition: transform 0.2s ease;
+}
+
+.c-learn-btn:hover .cta-arrow {
+  transform: translateX(3px);
+}
+
 /* ---------- misc HUD ---------- */
 #hint {
   position: absolute;
   left: 50%;
-  bottom: 20px;
+  bottom: 24px;
   transform: translateX(-50%);
   z-index: 15;
-  padding: 8px 18px;
+  padding: 10px 22px;
   border-radius: 30px;
-  font-size: 12.5px;
+  font-size: 17px;
   color: #cfe0f5;
   white-space: nowrap;
   opacity: 0.95;
@@ -628,21 +697,21 @@ body {
 
 #attrib {
   position: absolute;
-  right: 12px;
-  bottom: 10px;
+  right: 14px;
+  bottom: 12px;
   z-index: 10;
-  font-size: 10px;
-  color: rgba(230, 240, 255, 0.42);
+  font-size: 14px;
+  color: rgba(230, 240, 255, 0.52);
   pointer-events: none;
 }
 
 #fps {
   position: absolute;
-  left: 12px;
-  bottom: 10px;
+  left: 14px;
+  bottom: 12px;
   z-index: 10;
-  font-size: 10px;
-  color: rgba(230, 240, 255, 0.35);
+  font-size: 14px;
+  color: rgba(230, 240, 255, 0.45);
   pointer-events: none;
 }
 
@@ -692,7 +761,7 @@ body {
 }
 
 #load .t {
-  font-size: 20px;
+  font-size: 32px;
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -703,15 +772,15 @@ body {
 }
 
 #loadmsg {
-  font-size: 12.5px;
+  font-size: 20px;
   color: var(--dim);
   letter-spacing: 0.06em;
 }
 
 #loaderr {
-  max-width: 420px;
+  max-width: 460px;
   text-align: center;
-  font-size: 13px;
+  font-size: 18px;
   color: #ffb1a6;
   display: none;
 }
@@ -733,14 +802,14 @@ body {
     top: auto;
     bottom: 0;
     width: 100%;
-    max-height: 72vh;
+    max-height: 76vh;
     border-radius: 22px 22px 0 0;
     border-left: none;
     border-right: none;
     border-bottom: none;
     border-top: 1px solid rgba(255, 255, 255, 0.14);
     box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.72), 0 -1px 0 rgba(255, 255, 255, 0.08);
-    transform: translateY(calc(100% - 70px - var(--sab)));
+    transform: translateY(calc(100% - 78px - var(--sab)));
     transition: transform 0.35s cubic-bezier(0.18, 0.89, 0.32, 1.05);
     padding-bottom: var(--sab);
     background: rgba(8, 13, 24, 0.88);
@@ -796,11 +865,11 @@ body {
   }
 
   .brand .logo {
-    font-size: 17px;
+    font-size: 24px;
   }
 
   .brand .sub {
-    font-size: 9.5px;
+    font-size: 13px;
     letter-spacing: 0.12em;
   }
 
@@ -810,93 +879,137 @@ body {
 
   /* Layers bar touch-friendly on mobile */
   .dock-layers {
-    padding: 6px 16px 8px;
-    gap: 8px;
+    padding: 8px 16px 10px;
+    gap: 10px;
   }
 
   .layer-btn {
-    padding: 8px 4px;
-    font-size: 10px;
-    border-radius: 10px;
-    min-height: 44px;
+    padding: 10px 4px;
+    font-size: 14px;
+    border-radius: 11px;
+    min-height: 48px;
   }
 
   .layer-btn svg {
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
   }
 
   /* Tabs */
   .dock-tabs {
-    padding: 6px 16px;
-    gap: 8px;
+    padding: 8px 16px;
+    gap: 10px;
   }
 
   .dock-tab {
-    padding: 9px 12px;
-    font-size: 12px;
-    border-radius: 11px;
-    min-height: 40px;
+    padding: 11px 14px;
+    font-size: 16px;
+    border-radius: 12px;
+    min-height: 46px;
+  }
+
+  .dock-tab svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .tab-badge {
+    font-size: 13px;
+    padding: 2px 7px;
   }
 
   /* Action buttons */
   .dock-actions {
-    padding: 8px 16px 6px;
-    gap: 8px;
+    padding: 10px 16px 8px;
+    gap: 10px;
   }
 
   .chip {
-    padding: 7px 14px;
-    font-size: 12px;
+    padding: 10px 16px;
+    font-size: 16px;
     border-radius: 12px;
-    min-height: 36px;
+    min-height: 44px;
   }
 
   /* Color by language row */
   .dock-color-toggle-wrap {
-    padding: 4px 16px 8px;
+    padding: 6px 16px 10px;
   }
 
   .color-by-lang-btn {
-    padding: 8px 14px;
-    min-height: 38px;
+    padding: 11px 16px;
+    font-size: 16px;
+    min-height: 46px;
+  }
+
+  .color-by-lang-btn svg {
+    width: 18px;
+    height: 18px;
   }
 
   /* Languages list */
   .langs {
-    max-height: 42vh;
-    padding: 4px 12px 16px;
-    gap: 5px;
+    max-height: 44vh;
+    padding: 6px 12px 18px;
+    gap: 6px;
     -webkit-overflow-scrolling: touch;
   }
 
   .lang {
-    padding: 10px 14px;
-    min-height: 44px;
-    border-radius: 12px;
+    padding: 12px 16px;
+    min-height: 52px;
+    border-radius: 14px;
+  }
+
+  .lang .fl {
+    font-size: 28px;
+  }
+
+  .lang .nm b {
+    font-size: 17px;
+  }
+
+  .lang .nm span {
+    font-size: 14px;
+  }
+
+  .lang .ct {
+    font-size: 13.5px;
   }
 
   /* Countries list */
   .countries-search-wrap {
-    padding: 8px 16px 6px;
+    padding: 10px 16px 8px;
   }
 
   .country-search {
-    padding: 10px 14px;
-    font-size: 14px;
+    padding: 12px 16px;
+    font-size: 17px;
     border-radius: 12px;
   }
 
   .countries-list {
-    max-height: 42vh;
-    padding: 4px 12px 16px;
+    max-height: 44vh;
+    padding: 6px 12px 18px;
     -webkit-overflow-scrolling: touch;
   }
 
   .country-item {
-    padding: 10px 14px;
-    min-height: 46px;
-    border-radius: 12px;
+    padding: 12px 16px;
+    min-height: 54px;
+    border-radius: 13px;
+  }
+
+  .c-flag {
+    font-size: 26px;
+  }
+
+  .c-name {
+    font-size: 17px;
+  }
+
+  .c-sub {
+    font-size: 14px;
   }
 
   /* Country Card: slide-down top sheet or banner on mobile */
@@ -905,31 +1018,66 @@ body {
     right: 12px;
     top: calc(12px + var(--sat));
     width: auto;
-    border-radius: 18px;
-    max-height: 52vh;
+    border-radius: 20px;
+    max-height: 60vh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75);
-    background: rgba(9, 15, 28, 0.92);
+    background: rgba(9, 15, 28, 0.94);
   }
 
   #card .inner {
-    padding: 14px 16px 14px;
+    padding: 18px 18px 18px;
   }
 
   #card .x {
-    top: 8px;
-    right: 10px;
-    width: 32px;
-    height: 32px;
+    top: 10px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+
+  .c-head .fl {
+    font-size: 46px;
+  }
+
+  .c-head h2 {
+    font-size: 23px;
+  }
+
+  .c-head .code {
+    font-size: 14px;
+  }
+
+  .c-row .k {
+    font-size: 13px;
+  }
+
+  .c-row .v {
+    font-size: 17px;
+  }
+
+  .c-row .note {
     font-size: 15px;
+  }
+
+  .lchip {
+    font-size: 15px;
+    padding: 5px 11px;
+  }
+
+  .c-learn-btn {
+    padding: 14px 18px;
+    font-size: 18px;
+    border-radius: 12px;
   }
 
   /* Floating HUDs on mobile */
   #hint {
-    bottom: calc(76px + var(--sab));
-    font-size: 11px;
-    padding: 6px 14px;
+    bottom: calc(86px + var(--sab));
+    font-size: 14px;
+    padding: 8px 16px;
     max-width: 90vw;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -943,7 +1091,7 @@ body {
     top: calc(8px + var(--sat));
     left: 12px;
     bottom: auto;
-    font-size: 9.5px;
+    font-size: 13px;
     opacity: 0.6;
   }
 }

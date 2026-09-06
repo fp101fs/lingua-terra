@@ -214,6 +214,21 @@ export class UIManager {
       })
       .join("");
 
+    const primaryLangId = c.langs[0];
+    const primaryLangName = primaryLangId ? (langName(primaryLangId)?.name || primaryLangId) : "";
+    const learnBtnHtml = primaryLangName
+      ? `<div class="c-cta-wrap">
+          <a href="#" class="c-learn-btn" id="cardLearnBtn" title="Learn ${primaryLangName}">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+            </svg>
+            <span>Learn ${primaryLangName}</span>
+            <span class="cta-arrow">→</span>
+          </a>
+        </div>`
+      : "";
+
     this.el.cardIn.innerHTML = `
       <div class="c-head"><span class="fl">${flagOf(c.meta.a2)}</span>
         <div><h2>${c.meta.name}</h2><div class="code">ISO ${c.meta.a2} · ${fmtPop(c.meta.pop)} people</div></div></div>
@@ -221,7 +236,8 @@ export class UIManager {
         <div class="c-row"><div class="k">Capital</div><div class="v">${c.meta.cap}</div></div>
         <div class="c-row"><div class="k">Official languages (of the 12 tracked)</div><div class="chips">${chips}</div></div>
         ${rows}
-      </div>`;
+      </div>
+      ${learnBtnHtml}`;
     (card.querySelector(".band") as HTMLElement).style.background = `linear-gradient(90deg, ${cssHsl(
       c.color,
       1
