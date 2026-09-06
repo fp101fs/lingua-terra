@@ -303,15 +303,8 @@ class App {
       return labelCode;
     }
 
-    // 3. Check country land polygon
-    if (!groundGeo) {
-      this.hoverCode = null;
-      return null;
-    }
-    const c = this.earthScene.countryAtGeo(groundGeo.lat, groundGeo.lon, [...this.countries.values()]);
-    const code = c ? c.meta.a2 : null;
-    this.hoverCode = code;
-    return code;
+    this.hoverCode = null;
+    return null;
   }
 
   private refreshPins(force = false) {
