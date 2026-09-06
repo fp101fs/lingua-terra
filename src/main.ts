@@ -277,19 +277,39 @@ class App {
     if (now - this.lastHoverPx < 24) return this.hoverCode; // cheap throttle
     this.lastHoverPx = now;
     const r = (this.earthScene.renderer.domElement as HTMLCanvasElement).getBoundingClientRect();
-    const pin = this.pins?.pick(this.earthScene.cam, cx - r.left, cy - r.top, r.width, r.height);
+    const relX = cx - r.left;
+    const relY = cy - r.top;
+
+    // 1. Check pins first
+    const pin = this.pins?.pick(this.earthScene.cam, relX, relY, r.width, r.height);
     if (pin) {
       this.hoverCode = pin;
       return pin;
     }
+
+    // 2. Check country titles (labels) on the globe
     const g = this.controls.cursorGroundPoint(cx, cy);
-    if (!g) {
+    const groundGeo = g ? vecToGeo(g) : null;
+    const labelCode = this.earthScene.pickLabel(
+      this.earthScene.cam,
+      relX,
+      relY,
+      r.width,
+      r.height,
+      groundGeo
+    );
+    if (labelCode) {
+      this.hoverCode = labelCode;
+      return labelCode;
+    }
+
+    // 3. Check country land polygon
+    if (!groundGeo) {
       this.hoverCode = null;
       return null;
     }
-    const { lat, lon } = vecToGeo(g);
-    const c = this.earthScene.countryAtGeo(lat, lon, [...this.countries.values()]);
-    const code = c && this.activeCodes().has(c.meta.a2) ? c.meta.a2 : null;
+    const c = this.earthScene.countryAtGeo(groundGeo.lat, groundGeo.lon, [...this.countries.values()]);
+    const code = c ? c.meta.a2 : null;
     this.hoverCode = code;
     return code;
   }

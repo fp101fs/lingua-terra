@@ -1,6 +1,20 @@
 import { R, R_OVER, TEX } from "../constants";
 import type { Country, LayerState } from "../types";
-import { cssHsl, clamp, wrapLon } from "../utils/geo";
+import { cssHsl, clamp, wrapLon, geoToVec3 } from "../utils/geo";
+
+export interface PlacedLabel {
+  code: string;
+  country: Country;
+  corners: { x: number; y: number }[];
+  aabb: { minX: number; minY: number; maxX: number; maxY: number };
+  renderX: number;
+  renderY: number;
+  renderLon: number;
+  renderLat: number;
+  worldPos: any;
+  width: number;
+  height: number;
+}
 
 export class EarthScene {
   renderer: any;
@@ -18,6 +32,7 @@ export class EarthScene {
   pickH = 1024;
   pickData!: Uint8ClampedArray;
   overlayDirty = true;
+  placedLabels: PlacedLabel[] = [];
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -221,6 +236,7 @@ export class EarthScene {
     camDist = 3.0,
     colorByLang = false
   ) {
+    this.placedLabels = [];
     const g = this.fillCtx,
       W = this.fillCv.width,
       H = this.fillCv.height;
@@ -328,7 +344,7 @@ export class EarthScene {
         const x = ((c.label.cx + 180) / 360) * W;
         const y = ((90 - c.label.cy) / 180) * H;
 
-        const item = this.tryDrawCountryLabel(
+        const res = this.tryDrawCountryLabel(
           g,
           c.meta.name,
           x,
@@ -340,7 +356,24 @@ export class EarthScene {
           isActive,
           placedItems
         );
-        if (item) placedItems.push(item);
+        if (res) {
+          placedItems.push(res.item);
+          const rLon = (res.renderX / W) * 360 - 180;
+          const rLat = 90 - (res.renderY / H) * 180;
+          this.placedLabels.push({
+            code: c.meta.a2,
+            country: c,
+            corners: res.item.corners,
+            aabb: res.item.aabb,
+            renderX: res.renderX,
+            renderY: res.renderY,
+            renderLon: rLon,
+            renderLat: rLat,
+            worldPos: geoToVec3(rLat, rLon, R * 1.003),
+            width: res.width,
+            height: res.height,
+          });
+        }
       }
     }
 
@@ -454,7 +487,13 @@ export class EarthScene {
     isSelected: boolean,
     isActive: boolean,
     placedItems: { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } }[]
-  ): { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } } | null {
+  ): {
+    item: { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } };
+    renderX: number;
+    renderY: number;
+    width: number;
+    height: number;
+  } | null {
     const W = this.fillCv.width;
 
     // Proportionally reduce font size down until text fits within country border
@@ -483,6 +522,8 @@ export class EarthScene {
       renderX: number;
       renderY: number;
       fontSize: number;
+      width: number;
+      height: number;
       item: { corners: { x: number; y: number }[]; aabb: { minX: number; minY: number; maxX: number; maxY: number } };
     } | null = null;
 
@@ -500,7 +541,7 @@ export class EarthScene {
         const item = { corners, aabb };
 
         if (isSelected || !this.itemCollides(item, placedItems, W)) {
-          chosenCandidate = { renderX: cx, renderY: cy, fontSize: fs, item };
+          chosenCandidate = { renderX: cx, renderY: cy, fontSize: fs, width: curW, height: curH, item };
           break;
         }
       }
@@ -515,7 +556,7 @@ export class EarthScene {
         const curH = fs + 3;
         const corners = this.getRotatedBoxCorners(x, y, curW, curH, angle);
         const aabb = this.computeAABB(corners);
-        chosenCandidate = { renderX: x, renderY: y, fontSize: fs, item: { corners, aabb } };
+        chosenCandidate = { renderX: x, renderY: y, fontSize: fs, width: curW, height: curH, item: { corners, aabb } };
       } else {
         return null;
       }
@@ -529,7 +570,101 @@ export class EarthScene {
       this.renderTextAt(g, name, chosenCandidate.renderX - W, chosenCandidate.renderY, angle, chosenCandidate.fontSize, isSelected, isActive);
     }
 
-    return chosenCandidate.item;
+    return {
+      item: chosenCandidate.item,
+      renderX: chosenCandidate.renderX,
+      renderY: chosenCandidate.renderY,
+      width: chosenCandidate.width,
+      height: chosenCandidate.height,
+    };
+  }
+
+  pickLabel(
+    cam: any,
+    relX: number,
+    relY: number,
+    canvasW: number,
+    canvasH: number,
+    groundGeo: { lat: number; lon: number } | null
+  ): string | null {
+    if (!this.placedLabels.length) return null;
+
+    const camDir = cam.position.clone().normalize();
+    const camDist = cam.position.length();
+    const horizonDot = (R * R) / Math.max(camDist, R * 1.01) + 0.02;
+    const W = this.fillCv.width;
+    const H = this.fillCv.height;
+
+    // 1. Precise check on globe texture via ground intersection point
+    if (groundGeo) {
+      const tx = ((wrapLon(groundGeo.lon) + 180) / 360) * W;
+      const ty = clamp(((90 - groundGeo.lat) / 180) * H, 0, H - 1);
+      const wrapOffsets = [0, W, -W];
+
+      for (let i = this.placedLabels.length - 1; i >= 0; i--) {
+        const lbl = this.placedLabels[i];
+        if (lbl.worldPos.dot(camDir) < horizonDot) continue;
+
+        for (const offset of wrapOffsets) {
+          const px = tx + offset;
+          const py = ty;
+          if (
+            px < lbl.aabb.minX - 12 ||
+            px > lbl.aabb.maxX + 12 ||
+            py < lbl.aabb.minY - 12 ||
+            py > lbl.aabb.maxY + 12
+          ) {
+            continue;
+          }
+
+          if (this.pointInRotatedBox(px, py, lbl.corners, 8)) {
+            return lbl.code;
+          }
+        }
+      }
+    }
+
+    // 2. Screen-space proximity check (great for small text, angled callouts, and touch taps)
+    let bestCode: string | null = null;
+    let bestDist = Infinity;
+
+    for (let i = this.placedLabels.length - 1; i >= 0; i--) {
+      const lbl = this.placedLabels[i];
+      if (lbl.worldPos.dot(camDir) < horizonDot) continue;
+
+      const p = lbl.worldPos.clone().project(cam);
+      if (p.z > 1) continue;
+
+      const sx = ((p.x + 1) / 2) * canvasW;
+      const sy = ((-p.y + 1) / 2) * canvasH;
+
+      const dist = Math.hypot(relX - sx, relY - sy);
+      const screenRadius = Math.max(20, (lbl.width / W) * canvasW * (2.8 / camDist));
+      if (dist < screenRadius && dist < bestDist) {
+        bestDist = dist;
+        bestCode = lbl.code;
+      }
+    }
+
+    return bestCode;
+  }
+
+  private pointInRotatedBox(
+    px: number,
+    py: number,
+    corners: { x: number; y: number }[],
+    pad = 8
+  ): boolean {
+    if (corners.length < 4) return false;
+    for (let i = 0; i < 4; i++) {
+      const p1 = corners[i];
+      const p2 = corners[(i + 1) % 4];
+      const cross = (p2.x - p1.x) * (py - p1.y) - (p2.y - p1.y) * (px - p1.x);
+      const len = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1;
+      const dist = cross / len;
+      if (dist < -pad) return false;
+    }
+    return true;
   }
 
   private renderTextAt(
