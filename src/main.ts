@@ -125,6 +125,13 @@ class App {
           ring => ring.length > 0 && ring[0][0] > -15 && ring[0][1] > 30
         );
       }
+      // Norway (NO / 578) includes the high-Arctic Svalbard archipelago (lat 76°-81° N), which
+      // pulled Norway's pin into the Barents Sea (71.9° N). Keep Norway centered on mainland Scandinavia.
+      if (a2 === "NO") {
+        effectivePolys = rawPolys.filter(
+          ring => ring.length > 0 && ring[0][1] < 72
+        );
+      }
       const polys: number[][][] = [];
       let x = 0,
         y = 0,
