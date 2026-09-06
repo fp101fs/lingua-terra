@@ -175,9 +175,9 @@ export class UIManager {
     });
     this.el.btnAll.classList.toggle("on", mode === "all");
 
-    // "Color by Language" toggle appears below Show All / Reset when in Show All mode
+    // "Color by Language" toggle appears below Show All / Reset when in Show All or Language mode
     if (this.el.dockLangColorRow) {
-      if (mode === "all") {
+      if (mode === "all" || mode === "lang") {
         this.el.dockLangColorRow.classList.add("visible");
       } else {
         this.el.dockLangColorRow.classList.remove("visible");

@@ -750,13 +750,14 @@ body {
 
   .grab {
     display: block;
-    width: 44px;
-    height: 5px;
-    border-radius: 3px;
-    background: rgba(255, 255, 255, 0.35);
+    width: 4px;
+    height: 16px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 0 8px rgba(111, 183, 255, 0.6), 0 2px 4px rgba(0, 0, 0, 0.5);
     position: absolute;
     left: 50%;
-    top: 8px;
+    top: 7px;
     transform: translateX(-50%);
     cursor: grab;
     touch-action: none;
@@ -767,7 +768,7 @@ body {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 16px 18px 10px;
+    padding: 24px 18px 10px;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
